@@ -39,17 +39,15 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             ContentType: req.file.mimetype
         };
 
-        await s3.upload(params).promise();
+        
+    await s3.upload(params).promise();
 
-        // Generate presigned URL - 1 year
-        const url = s3.getSignedUrl('getObject', {
-            Bucket: BUCKET,
-            Key: fileName,
-            Expires: 604800
-        });
+// Permanent public URL
+const url = `https://link.eu1.storjshare.io/raw/${process.env.STORJ_ACCESS_GRANT}/oryzon-media/${fileName}`;
 
-        res.json({ success: true, url, key: fileName });
-
+res.json({ success: true, url, key: fileName });
+    
+    
     } catch (err) {
         console.error('Upload error:', err);
         res.status(500).json({ error: err.message });
