@@ -17,7 +17,7 @@ const s3 = new AWS.S3({
     region: 'us-east-1'
 });
 
-const BUCKET = 'oryzon media';
+const BUCKET = 'oryzon-media';
 
 const upload = multer({
     storage: multer.memoryStorage(),
