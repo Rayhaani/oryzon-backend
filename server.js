@@ -3,7 +3,6 @@ const multer = require('multer');
 const AWS = require('aws-sdk');
 const cors = require('cors');
 const path = require('path');
-endpoint: process.env.STORJ_ENDPOINT || 'https://gateway.eu1.storjshare.io',
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -11,7 +10,7 @@ app.use(express.json());
 const s3 = new AWS.S3({
     accessKeyId: process.env.STORJ_ACCESS_KEY,
     secretAccessKey: process.env.STORJ_SECRET_KEY,
-    
+    endpoint: process.env.STORJ_ENDPOINT || 'https://gateway.eu1.storjshare.io',
     s3ForcePathStyle: true,
     signatureVersion: 'v4',
     region: 'us-east-1'
