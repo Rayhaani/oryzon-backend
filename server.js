@@ -45,7 +45,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         const url = s3.getSignedUrl('getObject', {
             Bucket: BUCKET,
             Key: fileName,
-            Expires: 31536000
+            Expires: 604800
         });
 
         res.json({ success: true, url, key: fileName });
