@@ -8,15 +8,15 @@ app.use(cors());
 app.use(express.json());
 
 const s3 = new AWS.S3({
-    accessKeyId: process.env.STORJ_ACCESS_KEY,
-    secretAccessKey: process.env.STORJ_SECRET_KEY,
-    endpoint: process.env.STORJ_ENDPOINT || 'https://gateway.eu1.storjshare.io',
+    accessKeyId: process.env.B2_KEY_ID,
+    secretAccessKey: process.env.B2_APPLICATION_KEY,
+    endpoint: process.env.B2_ENDPOINT || 'https://s3.us-east-005.backblazeb2.com',
     s3ForcePathStyle: true,
     signatureVersion: 'v4',
-    region: 'us-east-1'
+    region: 'us-east-005'
 });
 
-const BUCKET = 'oryzon-media';
+const BUCKET = 'social-media-storage';
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -42,8 +42,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         
     await s3.upload(params).promise();
 
-// Permanent public URL
-const url = `https://link.eu1.storjshare.io/raw/${process.env.STORJ_ACCESS_GRANT}/oryzon-media/${fileName}`;
+const url = `https://${BUCKET}.s3.us-east-005.backblazeb2.com/${fileName}`;
 
 res.json({ success: true, url, key: fileName });
     
