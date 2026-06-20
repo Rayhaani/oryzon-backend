@@ -13,10 +13,11 @@ app.use(express.json());
 //  FIREBASE ADMIN — don tabbatar wanene yake kira API ɗinmu
 // ────────────────────────────────────────────────────────────
 admin.initializeApp({
-    credential: admin.credential.cert(require('./serviceAccountKey.json'))
-    // Samu wannan file daga: Firebase Console → Project Settings
-    // → Service Accounts → Generate New Private Key
-    // KADA KA TURA WANNAN FILE ZUWA GITHUB — saka a .gitignore
+    credential: admin.credential.cert(
+        require(process.env.NODE_ENV === 'production'
+            ? '/etc/secrets/serviceAccountKey.json'
+            : './serviceAccountKey.json')
+    )
 });
 
 const ADMIN_UID = "PUT_YOUR_ADMIN_UID_HERE"; // ← canza da UID ɗinka na admin
