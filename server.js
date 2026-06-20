@@ -57,7 +57,7 @@ const s3 = new AWS.S3({
 });
 
 const BUCKET = 'social-media-storage';                       // bucket na yanzu — PUBLIC (hoto/video na app)
-const VERIFICATION_BUCKET = 'abokina-verification-private';  // bucket SABO — dole ya zama PRIVATE a B2 dashboard
+const VERIFICATION_BUCKET = 'social-media-verification-private';
 
 const upload = multer({
     storage: multer.memoryStorage(),
