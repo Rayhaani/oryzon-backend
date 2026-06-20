@@ -20,8 +20,7 @@ admin.initializeApp({
     )
 });
 
-const ADMIN_UID = "PUT_YOUR_ADMIN_UID_HERE"; // ← canza da UID ɗinka na admin
-
+const ADMIN_UID = "3w81YH5QG6gH61II7jVCKfTRYo72"; // Admin UID
 // Middleware: tabbatar mai kira ya login (Firebase Auth token)
 async function requireAuth(req, res, next) {
     const authHeader = req.headers.authorization || '';
