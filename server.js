@@ -175,6 +175,78 @@ app.delete('/verification-delete', requireAuth, requireAdmin, async (req, res) =
 // ────────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.json({ status: 'Oryzon Media Server yana aiki!' }));
 
+// ════════════════════════════════════════════════════════════
+//  FCM PUSH NOTIFICATION ENDPOINTS
+// ════════════════════════════════════════════════════════════
+
+// Save FCM token na user zuwa Firebase RTDB
+app.post('/save-fcm-token', async (req, res) => {
+    try {
+        const { username, token } = req.body;
+        if (!username || !token) {
+            return res.status(400).json({ error: 'Babu username ko token' });
+        }
+
+        const db = admin.database();
+        await db.ref(`fcm_tokens/${username}`).set({
+            token: token,
+            updatedAt: Date.now()
+        });
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Save FCM token error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Aika Push Notification zuwa user
+app.post('/send-push', async (req, res) => {
+    try {
+        const { username, title, body, data } = req.body;
+        if (!username || !title || !body) {
+            return res.status(400).json({ error: 'Babu username, title, ko body' });
+        }
+
+        // Samu FCM token na user daga RTDB
+        const db = admin.database();
+        const snap = await db.ref(`fcm_tokens/${username}`).once('value');
+        
+        if (!snap.exists()) {
+            return res.status(404).json({ error: 'User ba shi da FCM token' });
+        }
+
+        const fcmToken = snap.val().token;
+
+        // Aika notification
+        const message = {
+            token: fcmToken,
+            notification: {
+                title: title,
+                body: body
+            },
+            data: data || {},
+            webpush: {
+                notification: {
+                    icon: '/icon-192.png',
+                    badge: '/badge-72.png',
+                    vibrate: [200, 100, 200]
+                },
+                fcm_options: {
+                    link: data && data.url ? data.url : '/services.html'
+                }
+            }
+        };
+
+        const response = await admin.messaging().send(message);
+        res.json({ success: true, messageId: response });
+
+    } catch (err) {
+        console.error('Send push error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
            
