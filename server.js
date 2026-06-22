@@ -17,7 +17,8 @@ admin.initializeApp({
         require(process.env.NODE_ENV === 'production'
             ? '/etc/secrets/serviceAccountKey.json'
             : './serviceAccountKey.json')
-    )
+    ),
+    databaseURL: "https://oryzon-50ea4-default-rtdb.firebaseio.com"
 });
 
 const ADMIN_UID = "3w81YH5QG6gH61II7jVCKfTRYo72"; // Admin UID
