@@ -250,4 +250,16 @@ app.post('/send-push', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
+
+
+app.post('/get-custom-token', async (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ success: false });
+  try {
+    const token = await admin.auth().createCustomToken(username);
+    res.json({ success: true, token });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
            
