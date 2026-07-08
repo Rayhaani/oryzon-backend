@@ -112,7 +112,6 @@ app.delete('/delete', async (req, res) => {
 //  ENDPOINTS NA ID/SELFIE VERIFICATION (private bucket + auth)
 // ════════════════════════════════════════════════════════════
 
-// Pro ya tura ID ko Selfie — dole ya zama logged in (Firebase token)
 app.post('/upload-verification', requireAuth, upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Babu file' });
@@ -123,8 +122,6 @@ app.post('/upload-verification', requireAuth, upload.single('file'), async (req,
         }
 
         const ext = path.extname(req.file.originalname) || '.jpg';
-        // req.uid ya fito daga token da aka tabbatar — BA daga frontend body ba,
-        // don kada mutum ya rubuta wani UID ya kwaikwayi wani Pro.
         const fileName = `${req.uid}/${docType}_${Date.now()}${ext}`;
 
         await s3.upload({
@@ -132,10 +129,9 @@ app.post('/upload-verification', requireAuth, upload.single('file'), async (req,
             Key: fileName,
             Body: req.file.buffer,
             ContentType: req.file.mimetype
-            // LURA: babu ACL public-read anan — file ɗin ya rage private
         }).promise();
 
-        res.json({ success: true, key: fileName });   // BABU public url da ake mayarwa
+        res.json({ success: true, key: fileName });
 
     } catch (err) {
         console.error('Verification upload error:', err);
@@ -143,7 +139,6 @@ app.post('/upload-verification', requireAuth, upload.single('file'), async (req,
     }
 });
 
-// Admin kawai zai iya samun signed URL don kallon hoto (yana mutuwa bayan minti 10)
 app.post('/verification-url', requireAuth, requireAdmin, async (req, res) => {
     try {
         const { key } = req.body;
@@ -152,7 +147,7 @@ app.post('/verification-url', requireAuth, requireAdmin, async (req, res) => {
         const url = s3.getSignedUrl('getObject', {
             Bucket: VERIFICATION_BUCKET,
             Key: key,
-            Expires: 600   // minti 10 kawai
+            Expires: 600
         });
 
         res.json({ success: true, url });
@@ -161,7 +156,6 @@ app.post('/verification-url', requireAuth, requireAdmin, async (req, res) => {
     }
 });
 
-// Admin kawai zai iya share hoton ID/selfie bayan an gama review (privacy compliance)
 app.delete('/verification-delete', requireAuth, requireAdmin, async (req, res) => {
     try {
         const { key } = req.body;
@@ -180,7 +174,6 @@ app.get('/', (req, res) => res.json({ status: 'Oryzon Media Server yana aiki!' }
 //  FCM PUSH NOTIFICATION ENDPOINTS
 // ════════════════════════════════════════════════════════════
 
-// Save FCM token na user zuwa Firebase RTDB
 app.post('/save-fcm-token', async (req, res) => {
     try {
         const { username, token } = req.body;
@@ -201,7 +194,6 @@ app.post('/save-fcm-token', async (req, res) => {
     }
 });
 
-// Aika Push Notification zuwa user
 app.post('/send-push', async (req, res) => {
     try {
         const { username, title, body, data } = req.body;
@@ -209,17 +201,15 @@ app.post('/send-push', async (req, res) => {
             return res.status(400).json({ error: 'Babu username, title, ko body' });
         }
 
-        // Samu FCM token na user daga RTDB
         const db = admin.database();
         const snap = await db.ref(`fcm_tokens/${username}`).once('value');
-        
+
         if (!snap.exists()) {
             return res.status(404).json({ error: 'User ba shi da FCM token' });
         }
 
         const fcmToken = snap.val().token;
 
-        // Aika notification
         const message = {
             token: fcmToken,
             notification: {
@@ -248,18 +238,86 @@ app.post('/send-push', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
-
+// ════════════════════════════════════════════════════════════
+//  CUSTOM TOKEN (login)
+// ════════════════════════════════════════════════════════════
 
 app.post('/get-custom-token', async (req, res) => {
-  const { username } = req.body;
-  if (!username) return res.status(400).json({ success: false });
-  try {
-    const token = await admin.auth().createCustomToken(username);
-    res.json({ success: true, token });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+    const { username } = req.body;
+    if (!username) return res.status(400).json({ success: false });
+    try {
+        const token = await admin.auth().createCustomToken(username);
+        res.json({ success: true, token });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
-           
+
+// ════════════════════════════════════════════════════════════
+//  GROQ AI PROXY — tare da automatic key rotation/failover
+// ════════════════════════════════════════════════════════════
+const GROQ_KEYS = [
+    process.env.GROQ_API_KEY_1,
+    process.env.GROQ_API_KEY_2,
+    process.env.GROQ_API_KEY_3
+].filter(Boolean); // ya cire duk wanda babu shi (undefined)
+
+app.post('/api/chat', async (req, res) => {
+    const { systemPrompt, messages } = req.body;
+    if (!systemPrompt || !messages) {
+        return res.status(400).json({ error: 'Missing systemPrompt or messages' });
+    }
+    if (GROQ_KEYS.length === 0) {
+        return res.status(500).json({ error: 'Babu Groq API key da aka saita a server' });
+    }
+
+    let lastError = null;
+
+    for (let i = 0; i < GROQ_KEYS.length; i++) {
+        try {
+            const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${GROQ_KEYS[i]}`
+                },
+                body: JSON.stringify({
+                    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+                    messages: [{ role: 'system', content: systemPrompt }, ...messages],
+                    temperature: 0.8,
+                    max_completion_tokens: 500
+                })
+            });
+
+            if (groqRes.status === 429 || groqRes.status === 401) {
+                lastError = `Key #${i + 1} ya kasa (status ${groqRes.status})`;
+                console.warn(`⚠️ GROQ_API_KEY_${i + 1} rate-limited/invalid, gwada na gaba...`);
+                continue;
+            }
+
+            const data = await groqRes.json();
+
+            if (data.error) {
+                const code = data.error.code || '';
+                if (code === 'rate_limit_exceeded') {
+                    lastError = data.error.message;
+                    console.warn(`⚠️ GROQ_API_KEY_${i + 1} rate limit (in-body), gwada na gaba...`);
+                    continue;
+                }
+                return res.json(data);
+            }
+
+            return res.json(data);
+
+        } catch (err) {
+            lastError = err.message;
+            console.error(`Key #${i + 1} network error:`, err.message);
+            continue;
+        }
+    }
+
+    res.status(500).json({ error: 'Duk Groq API keys sun cika ko sun kasa: ' + lastError });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
