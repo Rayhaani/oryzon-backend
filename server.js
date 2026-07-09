@@ -284,7 +284,7 @@ app.post('/api/chat', async (req, res) => {
                 body: JSON.stringify({
                     model: 'meta-llama/llama-4-scout-17b-16e-instruct',
                     messages: [{ role: 'system', content: systemPrompt }, ...messages],
-                    temperature: 0.8,
+                    temperature: 0.5,
                     max_completion_tokens: 500
                 })
             });
