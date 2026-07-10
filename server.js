@@ -321,3 +321,84 @@ app.post('/api/chat', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
+
+
+// ===== NEXUS AI TRIAGE ENDPOINT =====
+// Kara wannan a server.js dinku, kusa da /upload route din da kuke da shi.
+
+const HF_TOKEN = process.env.HF_TOKEN;
+
+// Model IDs - za a iya canza su idan wani ya fi aiki a serverless
+const CLINICAL_MODEL = "google/medgemma-4b-it";
+const CONVERSATIONAL_MODEL = "meta-llama/Llama-3.2-3B-Instruct";
+
+async function callHuggingFace(model, messages) {
+    const response = await fetch(`https://api-inference.huggingface.co/models/${model}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${HF_TOKEN}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            model: model,
+            messages: messages,
+            max_tokens: 500,
+            temperature: 0.3
+        })
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`HF API error (${response.status}) for ${model}: ${errText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+}
+
+app.post('/ai-triage', async (req, res) => {
+    try {
+        const { text, image, lang } = req.body;
+
+        if (!text && !image) {
+            return res.status(400).json({ error: "No text or image provided." });
+        }
+
+        // Tsari mai matakai biyu:
+        // 1) Idan akwai hoto, MedGemma multimodal ke duba shi kai tsaye (yana iya
+        //    karbar rubutu da hoto tare a message guda, dangane da yadda aka
+        //    tsara chat template dinsa).
+        // 2) In babu hoto, MedGemma ke bincika rubutun kai tsaye.
+        const systemPrompt = "You are Nexus Intelligence, a careful medical triage assistant. You are NOT a doctor and must never give a final diagnosis. Assess the symptom described and clearly state: (1) whether this seems safe to self-manage at home, (2) practical self-care advice if safe, (3) whether the person should see a doctor and how urgently. Always end by reminding them this is not a diagnosis.";
+
+        const messages = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: image ? [
+                { type: "text", text: text || "Please look at this photo and tell me what you see." },
+                { type: "image_url", image_url: { url: image } }
+            ] : text }
+        ];
+
+        const clinicalReply = await callHuggingFace(CLINICAL_MODEL, messages);
+
+        // Idan harshen da aka zaba ba Turanci ba ne, mu wuce ta Llama don fassara
+        let finalReply = clinicalReply;
+        if (lang && lang !== 'en') {
+            const translationMessages = [
+                { role: "system", content: `Translate the following medical guidance into ${lang}, keeping it warm, clear, and accurate. Do not add or remove any medical information.` },
+                { role: "user", content: clinicalReply }
+            ];
+            finalReply = await callHuggingFace(CONVERSATIONAL_MODEL, translationMessages);
+        }
+
+        res.json({ reply: finalReply });
+
+    } catch (err) {
+        console.error("AI Triage error:", err.message);
+        res.status(500).json({
+            error: "AI service unavailable",
+            detail: err.message,
+            reply: "Sorry, I'm having trouble reaching the AI service right now. If your symptom is serious, please see a doctor directly."
+        });
+    }
+});
