@@ -333,7 +333,7 @@ const CLINICAL_MODEL = "google/medgemma-4b-it";
 const CONVERSATIONAL_MODEL = "meta-llama/Llama-3.2-3B-Instruct";
 
 async function callHuggingFace(model, messages) {
-    const response = await fetch(`https://api-inference.huggingface.co/models/${model}/v1/chat/completions`, {
+    const response = await fetch(`https://router.huggingface.co/v1/chat/completions`, {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${HF_TOKEN}`,
