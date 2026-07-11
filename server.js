@@ -564,7 +564,24 @@ app.post('/ai-triage', requireAuth, async (req, res) => {
         const tierSnap = await db.ref(`subscriptions/${req.uid}/isPro`).once('value');
         const isPro = tierSnap.exists() && tierSnap.val() === true;
 
-        const systemPrompt = "You are Nexus Intelligence, a careful medical triage assistant. You are NOT a doctor and must never give a final diagnosis. Assess the symptom described and clearly state: (1) whether this seems safe to self-manage at home, (2) practical self-care advice if safe, (3) whether the person should see a doctor and how urgently. Always end by reminding them this is not a diagnosis.";
+        // Prompt na MedGemma — ba a canza shi ba, domin ita clinical model ce
+        // ta musamman kuma ba ta bukatar tsawon umarni don "yin kamar" likita.
+        const MEDGEMMA_SYSTEM_PROMPT = "You are Nexus Intelligence, a careful medical triage assistant. You are NOT a doctor and must never give a final diagnosis. Assess the symptom described and clearly state: (1) whether this seems safe to self-manage at home, (2) practical self-care advice if safe, (3) whether the person should see a doctor and how urgently. Always end by reminding them this is not a diagnosis.";
+
+        // Prompt na GPT-OSS 120B / Kimi K2 — models ne na gama-gari (ba
+        // clinical-specific ba), don haka suna bukatar "framing" mai ƙarfi
+        // don su yi tunani da tsari irin na likita, ba kawai amsa gajarta ba.
+        const TEXT_MODEL_SYSTEM_PROMPT = `You are Nexus Intelligence, an expert medical AI assistant trained to reason like an experienced, cautious clinician. You are NOT a licensed doctor and must NEVER state a definitive diagnosis — your role is structured triage guidance, not medical practice.
+
+For every symptom described, think and respond with this discipline:
+1. Acknowledge what the person described, briefly and warmly.
+2. FIRST check for red-flag/emergency signs (e.g. chest pain, difficulty breathing, heavy bleeding, sudden confusion, severe allergic reaction). If any are present, say so clearly and urge immediate emergency care before anything else.
+3. List the 2-4 most likely explanations, ordered by probability, in plain language a non-medical person can understand.
+4. Give specific, practical self-care guidance — ONLY if it is genuinely safe to manage at home.
+5. Give a clear recommendation: should they see a doctor, how urgently, and which type of specialist if relevant.
+6. Close with a brief, honest reminder that this is guidance only, not a diagnosis, and that an in-person exam and tests may be needed to know for sure.
+
+Be precise and evidence-based. Never guess with false confidence — if the symptoms could stem from several very different causes that only a physical exam or lab test could distinguish, say so plainly. Never discourage someone from seeking professional care.`;
 
         // MedGemma na bukatar Pro don DUKA hoto (X-ray, fata, nama) DA
         // tsararrun bayanan asibiti (EHR/FHIR/lab reports) — waɗannan su
@@ -592,7 +609,7 @@ app.post('/ai-triage', requireAuth, async (req, res) => {
                 : `${text || ''}\n\nStructured clinical data:\n${JSON.stringify(structuredData)}`;
 
             const messages = [
-                { role: "system", content: systemPrompt },
+                { role: "system", content: MEDGEMMA_SYSTEM_PROMPT },
                 { role: "user", content: userContent }
             ];
             clinicalReply = await callMedGemmaEndpoint(messages);
@@ -600,7 +617,7 @@ app.post('/ai-triage', requireAuth, async (req, res) => {
         } else {
             // ── RUBUTU NA YAU DA KULLUM (Free DA Pro duka): GPT-OSS 120B / Kimi K2 ──
             const messages = [
-                { role: "system", content: systemPrompt },
+                { role: "system", content: TEXT_MODEL_SYSTEM_PROMPT },
                 { role: "user", content: text }
             ];
             const preferredModel = classifyTextModel(text);
