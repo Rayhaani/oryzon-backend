@@ -343,8 +343,12 @@ app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
 
 
 // ════════════════════════════════════════════════════════════
-//  NEXUS AI TRIAGE — MedGemma 1.5 4B (Paid, Dedicated Endpoint)
-//                  + Llama-3.3-70B (Free, Groq)
+//  NEXUS AI TRIAGE —
+//    • MedGemma 1.5 4B (Paid/Pro, Dedicated Endpoint) — hoto na
+//      likitanci (X-ray, fata, nama) da tsararrun bayanan asibiti
+//      (EHR/FHIR/lab reports) KAWAI.
+//    • GPT-OSS 120B + Kimi K2 (Free tier akan Groq) — duk sauran
+//      rubutu na yau da kullum, don DUKA free DA Pro users.
 // ════════════════════════════════════════════════════════════
 
 const HF_TOKEN = process.env.HF_TOKEN;
@@ -362,6 +366,53 @@ const CLINICAL_MODEL = "google/medgemma-1.5-4b-it"; // don rikodi/logging kawai
 // iya tabbatar da cikakkiyar daidaito ba tukuna — dole a gwada da
 // masu magana da Hausa kafin a ba da tabbacin inganci ga users.
 const TRANSLATION_MODEL = "meta-llama/Llama-3.2-3B-Instruct";
+
+// ════════════════════════════════════════════════════════════
+//  TEXT MODEL CHAIN — GPT-OSS 120B + Kimi K2 (dukkansu FREE akan
+//  Groq). Maye gurbin llama-3.3-70b-versatile. Ana amfani da wannan
+//  don DUKA free da Pro users idan tambaya rubutu ce ba tare da
+//  hoto ko tsararrun bayanan asibiti ba — MedGemma an ajiye ta
+//  KAWAI don hoto (X-ray, fata, nama) da bayanan tsari (EHR/FHIR/
+//  lab reports), domin ita ce mafi kwarewa a wannan fanni.
+// ════════════════════════════════════════════════════════════
+const TEXT_MODEL_CHAIN = {
+    simple: 'openai/gpt-oss-120b',              // default: tambaya gajarta/yau da kullum
+    complex: 'moonshotai/kimi-k2-instruct-0905'  // dogon tarihi/tambaya mai sarkakiya
+};
+
+// Gano wane model a chain ɗin ya kamata a fara amfani da shi, bisa
+// nau'in tambaya (kalmomin sarkakiya) da tsawon tarihin tattaunawa.
+function classifyTextModel(text, historyTokenEstimate = 0) {
+    const complexKeywords = [
+        'differential diagnosis', 'interaction', 'multiple conditions',
+        'tarihin likitanci', 'zurfin bincike', 'cikakken'
+    ];
+    const lower = (text || '').toLowerCase();
+    const isComplex = complexKeywords.some(kw => lower.includes(kw));
+    const longConversation = historyTokenEstimate > 4000;
+    return (isComplex || longConversation) ? TEXT_MODEL_CHAIN.complex : TEXT_MODEL_CHAIN.simple;
+}
+
+// Kira text-model chain: idan model na farko ya kasa (429/rate limit,
+// ko duk GROQ_KEYS nasa sun ƙare), a juya zuwa model na biyu kai tsaye
+// maimakon mai amfani ya samu kuskure.
+async function callTextModelChain(messages, preferredModel) {
+    const chain = preferredModel === TEXT_MODEL_CHAIN.complex
+        ? [TEXT_MODEL_CHAIN.complex, TEXT_MODEL_CHAIN.simple]
+        : [TEXT_MODEL_CHAIN.simple, TEXT_MODEL_CHAIN.complex];
+
+    let lastError = null;
+    for (const model of chain) {
+        try {
+            return await callGroqWithFailover(model, messages, 500, 0.3);
+        } catch (err) {
+            lastError = err.message;
+            console.warn(`⚠️ Text model ${model} ya kasa, ana gwada na gaba... (${err.message})`);
+            continue;
+        }
+    }
+    throw new Error(`Dukkan text models sun kasa: ${lastError}`);
+}
 
 // Kira MedGemma 1.5 ta hanyar Dedicated Endpoint (Paid tier)
 async function callMedGemmaEndpoint(messages) {
@@ -499,10 +550,10 @@ app.post('/check-due-reminders', async (req, res) => {
 
 app.post('/ai-triage', requireAuth, async (req, res) => {
     try {
-        const { text, image, lang } = req.body;
+        const { text, image, structuredData, lang } = req.body;
 
-        if (!text && !image) {
-            return res.status(400).json({ error: "No text or image provided." });
+        if (!text && !image && !structuredData) {
+            return res.status(400).json({ error: "No text, image, or structured data provided." });
         }
 
         // ── Duba ko user ɗin Pro/Paid ne ──
@@ -515,34 +566,45 @@ app.post('/ai-triage', requireAuth, async (req, res) => {
 
         const systemPrompt = "You are Nexus Intelligence, a careful medical triage assistant. You are NOT a doctor and must never give a final diagnosis. Assess the symptom described and clearly state: (1) whether this seems safe to self-manage at home, (2) practical self-care advice if safe, (3) whether the person should see a doctor and how urgently. Always end by reminding them this is not a diagnosis.";
 
+        // MedGemma na bukatar Pro don DUKA hoto (X-ray, fata, nama) DA
+        // tsararrun bayanan asibiti (EHR/FHIR/lab reports) — waɗannan su
+        // ne fannonin da ta fi kwarewa a kai fiye da GPT-OSS/Kimi K2.
+        const needsClinicalSpecialist = Boolean(image) || Boolean(structuredData);
+
         let clinicalReply;
 
-        if (isPro) {
-            // ── PAID: MedGemma 1.5 4B (multimodal — na iya duba hoto) ──
-            const messages = [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: image ? [
+        if (needsClinicalSpecialist) {
+            if (!isPro) {
+                return res.status(403).json({
+                    error: "image_requires_pro",
+                    reply: image
+                        ? "Nazarin hoto na bukatar asusun Pro. Da fatan za ka rubuta alamomin cutar a matsayin rubutu, ko ka koma Pro don nazarin hoto."
+                        : "Fassara/nazarin bayanan asibiti masu tsari (lab report/EHR) na bukatar asusun Pro. Ka koma Pro don wannan fasalin."
+                });
+            }
+
+            // ── PAID: MedGemma 1.5 4B (multimodal — hoto + bayanan tsari) ──
+            const userContent = image
+                ? [
                     { type: "text", text: text || "Please look at this photo and tell me what you see." },
                     { type: "image_url", image_url: { url: image } }
-                ] : text }
+                  ]
+                : `${text || ''}\n\nStructured clinical data:\n${JSON.stringify(structuredData)}`;
+
+            const messages = [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userContent }
             ];
             clinicalReply = await callMedGemmaEndpoint(messages);
 
         } else {
-            // ── FREE: Llama-3.3-70B ta Groq ──
-            // MUHIMMI: Llama-3.3-70B TEXT-ONLY ce (ba multimodal ba). Idan free
-            // user ya aika hoto, ba za a iya nazarce shi ba — dole ya koma Pro.
-            if (image) {
-                return res.status(403).json({
-                    error: "image_requires_pro",
-                    reply: "Nazarin hoto na bukatar asusun Pro. Da fatan za ka rubuta alamomin cutar a matsayin rubutu, ko ka koma Pro don nazarin hoto."
-                });
-            }
+            // ── RUBUTU NA YAU DA KULLUM (Free DA Pro duka): GPT-OSS 120B / Kimi K2 ──
             const messages = [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: text }
             ];
-            clinicalReply = await callGroqWithFailover('llama-3.3-70b-versatile', messages, 500, 0.3);
+            const preferredModel = classifyTextModel(text);
+            clinicalReply = await callTextModelChain(messages, preferredModel);
         }
 
         // ── Fassara zuwa wani harshe (misali Hausa) idan aka bukaci ──
