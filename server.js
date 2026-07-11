@@ -506,23 +506,14 @@ app.post('/ai-triage', requireAuth, async (req, res) => {
         }
 
         // ── Duba ko user ɗin Pro/Paid ne ──
-        // MUHIMMI: Ka canza wannan path (`users/${req.uid}/isPro`) domin ya
-        // dace da ainihin tsarin database ɗinka na membership/subscription.
+        // Sabon, dedicated node don subscription status, ba ya taɓa
+        // "customers"/"providers" da ke akwai — domin UID koyaushe
+        // tabbatacce ne (ya fito daga Firebase Auth token kai-tsaye).
         const db = admin.database();
-        const tierSnap = await db.ref(`users/${req.uid}/isPro`).once('value');
+        const tierSnap = await db.ref(`subscriptions/${req.uid}/isPro`).once('value');
         const isPro = tierSnap.exists() && tierSnap.val() === true;
 
-        const systemPrompt = `You are Nexus Intelligence, an advanced clinical triage assistant built on rigorous, evidence-based medical reasoning. Approach every case the way a highly experienced physician would: think systematically, consider the most likely causes first, and always check for emergency red flags before anything else.
-
-Structure every response exactly like this:
-1. A brief, warm acknowledgment of what the person described.
-2. The 2-4 most likely explanations for the symptom(s), ordered by likelihood, explained in plain language a non-medical person can understand.
-3. An explicit red-flag check: clearly state whether anything described could indicate a medical emergency.
-4. Specific, practical self-care guidance — only if it is genuinely safe to manage at home.
-5. A clear recommendation on whether the person should see a doctor, how urgently, and which type of specialist if relevant.
-6. A brief closing reminder that this is guidance, not a diagnosis, and that only an in-person doctor with physical examination and lab tests can confirm what is actually going on.
-
-You are not a licensed physician and must never state a definitive diagnosis. When symptoms could reasonably stem from several very different causes that require physical examination, imaging, or lab tests to distinguish, say so plainly rather than guessing. Never discourage someone from seeking professional care, and never let confidence in your reasoning replace appropriate clinical humility.`;
+        const systemPrompt = "You are Nexus Intelligence, a careful medical triage assistant. You are NOT a doctor and must never give a final diagnosis. Assess the symptom described and clearly state: (1) whether this seems safe to self-manage at home, (2) practical self-care advice if safe, (3) whether the person should see a doctor and how urgently. Always end by reminding them this is not a diagnosis.";
 
         let clinicalReply;
 
@@ -558,7 +549,7 @@ You are not a licensed physician and must never state a definitive diagnosis. Wh
         let finalReply = clinicalReply;
         if (lang && lang !== 'en') {
             const translationMessages = [
-                { role: "system", content: `Translate the following medical guidance into formal, standard Hausa (the kind used by BBC Hausa, VOA Hausa, or Radio Nigeria's Hausa service) — professional, grammatically correct, and free of regional slang or overly simplified phrasing. Use proper established Hausa medical/health terminology (e.g., "likita" for doctor, "asibiti" for hospital, "gwajin jini" for blood test) rather than awkward literal translations. Preserve every piece of medical information exactly — do not add, remove, or soften any detail. Output ONLY the Hausa translation, nothing else.` },
+                { role: "system", content: `Translate the following medical guidance into ${lang}, keeping it warm, clear, and accurate. Do not add or remove any medical information.` },
                 { role: "user", content: clinicalReply }
             ];
             finalReply = await callHuggingFaceRouter(TRANSLATION_MODEL, translationMessages);
