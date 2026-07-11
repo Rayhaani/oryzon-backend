@@ -254,21 +254,24 @@ app.post('/get-custom-token', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════
-//  GROQ AI PROXY — tare da automatic key rotation/failover
+//  GROQ KEYS — jerin duk API keys ɗin Groq (za a iya ƙara nawa
+//  kake so ta hanyar saka GROQ_API_KEY_4, GROQ_API_KEY_5, da sauransu
+//  a matsayin environment variables akan Render — rotation ɗin zai
+//  gane su kai-tsaye, babu bukatar canza code)
 // ════════════════════════════════════════════════════════════
 const GROQ_KEYS = [
     process.env.GROQ_API_KEY_1,
     process.env.GROQ_API_KEY_2,
-    process.env.GROQ_API_KEY_3
+    process.env.GROQ_API_KEY_3,
+    process.env.GROQ_API_KEY_4,
+    process.env.GROQ_API_KEY_5
 ].filter(Boolean); // ya cire duk wanda babu shi (undefined)
 
-app.post('/api/chat', async (req, res) => {
-    const { systemPrompt, messages } = req.body;
-    if (!systemPrompt || !messages) {
-        return res.status(400).json({ error: 'Missing systemPrompt or messages' });
-    }
+// Function na gama-gari: kira Groq tare da automatic key rotation/failover.
+// Ana amfani da wannan a duka /api/chat (Ali - vendor chat) da /ai-triage (free tier).
+async function callGroqWithFailover(model, messages, maxTokens = 500, temperature = 0.5) {
     if (GROQ_KEYS.length === 0) {
-        return res.status(500).json({ error: 'Babu Groq API key da aka saita a server' });
+        throw new Error('Babu Groq API key da aka saita a server');
     }
 
     let lastError = null;
@@ -282,66 +285,98 @@ app.post('/api/chat', async (req, res) => {
                     'Authorization': `Bearer ${GROQ_KEYS[i]}`
                 },
                 body: JSON.stringify({
-                    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-                    messages: [{ role: 'system', content: systemPrompt }, ...messages],
-                    temperature: 0.5,
-                    max_completion_tokens: 500
+                    model,
+                    messages,
+                    temperature,
+                    max_completion_tokens: maxTokens
                 })
             });
 
             if (groqRes.status === 429 || groqRes.status === 401) {
                 lastError = `Key #${i + 1} ya kasa (status ${groqRes.status})`;
-                console.warn(`⚠️ GROQ_API_KEY_${i + 1} rate-limited/invalid, gwada na gaba...`);
+                console.warn(`⚠️ Groq key #${i + 1} rate-limited/invalid, gwada na gaba...`);
                 continue;
             }
 
             const data = await groqRes.json();
 
             if (data.error) {
-                const code = data.error.code || '';
-                if (code === 'rate_limit_exceeded') {
+                if (data.error.code === 'rate_limit_exceeded') {
                     lastError = data.error.message;
-                    console.warn(`⚠️ GROQ_API_KEY_${i + 1} rate limit (in-body), gwada na gaba...`);
+                    console.warn(`⚠️ Groq key #${i + 1} rate limit (in-body), gwada na gaba...`);
                     continue;
                 }
-                return res.json(data);
+                throw new Error(data.error.message);
             }
 
-            return res.json(data);
+            return data.choices[0].message.content;
 
         } catch (err) {
             lastError = err.message;
-            console.error(`Key #${i + 1} network error:`, err.message);
+            console.error(`Groq key #${i + 1} network error:`, err.message);
             continue;
         }
     }
 
-    res.status(500).json({ error: 'Duk Groq API keys sun cika ko sun kasa: ' + lastError });
+    throw new Error('Duk Groq API keys sun cika ko sun kasa: ' + lastError);
+}
+
+app.post('/api/chat', async (req, res) => {
+    const { systemPrompt, messages } = req.body;
+    if (!systemPrompt || !messages) {
+        return res.status(400).json({ error: 'Missing systemPrompt or messages' });
+    }
+
+    try {
+        const reply = await callGroqWithFailover(
+            'meta-llama/llama-4-scout-17b-16e-instruct',
+            [{ role: 'system', content: systemPrompt }, ...messages]
+        );
+        res.json({ choices: [{ message: { content: reply } }] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
 
 
-// ===== NEXUS AI TRIAGE ENDPOINT =====
-// Kara wannan a server.js dinku, kusa da /upload route din da kuke da shi.
+// ════════════════════════════════════════════════════════════
+//  NEXUS AI TRIAGE — MedGemma 1.5 4B (Paid, Dedicated Endpoint)
+//                  + Llama-3.3-70B (Free, Groq)
+// ════════════════════════════════════════════════════════════
 
 const HF_TOKEN = process.env.HF_TOKEN;
 
-// Model IDs - za a iya canza su idan wani ya fi aiki a serverless
-const CLINICAL_MODEL = "google/medgemma-4b-it";
-const CONVERSATIONAL_MODEL = "meta-llama/Llama-3.2-3B-Instruct";
+// Sabuwar MedGemma 1.5 — ana gudanar da ita ta Dedicated Inference
+// Endpoint (T4), BA ta hanyar $9/wata PRO ba. Bayan ka "deploy" ta a
+// HF, sai ka saka URL ɗin endpoint ɗin nan a Render environment variables:
+// MEDGEMMA_ENDPOINT_URL = https://xxxxxxxxxx.us-east-1.aws.endpoints.huggingface.cloud
+const MEDGEMMA_ENDPOINT_URL = process.env.MEDGEMMA_ENDPOINT_URL;
+const CLINICAL_MODEL = "google/medgemma-1.5-4b-it"; // don rikodi/logging kawai
 
-async function callHuggingFace(model, messages) {
-    const response = await fetch(`https://router.huggingface.co/v1/chat/completions`, {
+// Karamin model — ana amfani da shi KAWAI don fassara (translation) idan
+// harshen da aka zaba ba Turanci ba ne. Ba a horar da wannan (ko
+// Llama-3.3-70B) musamman akan Hausa, don haka fassarar Hausa ba za a
+// iya tabbatar da cikakkiyar daidaito ba tukuna — dole a gwada da
+// masu magana da Hausa kafin a ba da tabbacin inganci ga users.
+const TRANSLATION_MODEL = "meta-llama/Llama-3.2-3B-Instruct";
+
+// Kira MedGemma 1.5 ta hanyar Dedicated Endpoint (Paid tier)
+async function callMedGemmaEndpoint(messages) {
+    if (!MEDGEMMA_ENDPOINT_URL) {
+        throw new Error("MEDGEMMA_ENDPOINT_URL ba a saita ba tukuna a environment variables — dole a fara 'deploy' Dedicated Endpoint a Hugging Face kafin wannan ya yi aiki.");
+    }
+
+    const response = await fetch(`${MEDGEMMA_ENDPOINT_URL}/v1/chat/completions`, {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${HF_TOKEN}`,
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            model: model,
-            messages: messages,
+            messages,
             max_tokens: 500,
             temperature: 0.3
         })
@@ -349,14 +384,120 @@ async function callHuggingFace(model, messages) {
 
     if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`HF API error (${response.status}) for ${model}: ${errText}`);
+        throw new Error(`MedGemma Endpoint error (${response.status}): ${errText}`);
     }
 
     const data = await response.json();
     return data.choices[0].message.content;
 }
 
-app.post('/ai-triage', async (req, res) => {
+// Kira karamin model na fassara ta hanyar HF Router (ba dedicated endpoint ba, wannan yana kan free serverless)
+async function callHuggingFaceRouter(model, messages) {
+    const response = await fetch(`https://router.huggingface.co/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${HF_TOKEN}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ model, messages, max_tokens: 500, temperature: 0.3 })
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`HF Router error (${response.status}) for ${model}: ${errText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+}
+
+// ════════════════════════════════════════════════════════════
+//  MEDICATION REMINDERS — ajiya a Firebase (don push notifications)
+//  da FAMILY PROFILES support (kowane profile na da meds dinsa)
+// ════════════════════════════════════════════════════════════
+
+app.get('/meds/:profileId', requireAuth, async (req, res) => {
+    try {
+        const db = admin.database();
+        const snap = await db.ref(`users/${req.uid}/meds/${req.params.profileId}`).once('value');
+        res.json({ success: true, meds: snap.val() || {} });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/meds/:profileId', requireAuth, async (req, res) => {
+    try {
+        const { name, time, freq } = req.body;
+        if (!name || !time) return res.status(400).json({ error: 'Babu name ko time' });
+        const db = admin.database();
+        const ref = db.ref(`users/${req.uid}/meds/${req.params.profileId}`).push();
+        await ref.set({ name, time, freq: freq || 'Once daily', createdAt: Date.now(), lastNotified: null });
+        res.json({ success: true, id: ref.key });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/meds/:profileId/:medId', requireAuth, async (req, res) => {
+    try {
+        const db = admin.database();
+        await db.ref(`users/${req.uid}/meds/${req.params.profileId}/${req.params.medId}`).remove();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Wannan endpoint din ana KIRAN SA TA WANI CRON JOB (misali Render Cron
+// Job ko cron-job.org) KOWACE MINTI 1, domin ya duba wadanne magunguna
+// suka kai lokacin da za a tunatar da user. Ba a bukatar user ya bude
+// app din domin ya samu wannan tunatarwa — wannan shine ainihin "Push
+// Reminder" na gaskiya (ba kawai in-app ba).
+app.post('/check-due-reminders', async (req, res) => {
+    try {
+        const db = admin.database();
+        const usersSnap = await db.ref('users').once('value');
+        const users = usersSnap.val() || {};
+        const now = new Date();
+        const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        let sentCount = 0;
+
+        for (const uid of Object.keys(users)) {
+            const profiles = users[uid].meds || {};
+            for (const profileId of Object.keys(profiles)) {
+                const meds = profiles[profileId] || {};
+                for (const medId of Object.keys(meds)) {
+                    const med = meds[medId];
+                    if (med.time !== currentHHMM) continue;
+                    const lastNotified = med.lastNotified || 0;
+                    if (Date.now() - lastNotified < 55 * 1000) continue;
+
+                    const fcmSnap = await db.ref(`fcm_tokens/${uid}`).once('value');
+                    if (!fcmSnap.exists()) continue;
+
+                    await admin.messaging().send({
+                        token: fcmSnap.val().token,
+                        notification: {
+                            title: '💊 Lokacin Magani',
+                            body: `Lokaci yayi na ${med.name} (${med.freq})`
+                        },
+                        webpush: { fcm_options: { link: '/health.html' } }
+                    });
+
+                    await db.ref(`users/${uid}/meds/${profileId}/${medId}/lastNotified`).set(Date.now());
+                    sentCount++;
+                }
+            }
+        }
+        res.json({ success: true, sent: sentCount });
+    } catch (err) {
+        console.error('check-due-reminders error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/ai-triage', requireAuth, async (req, res) => {
     try {
         const { text, image, lang } = req.body;
 
@@ -364,34 +505,56 @@ app.post('/ai-triage', async (req, res) => {
             return res.status(400).json({ error: "No text or image provided." });
         }
 
-        // Tsari mai matakai biyu:
-        // 1) Idan akwai hoto, MedGemma multimodal ke duba shi kai tsaye (yana iya
-        //    karbar rubutu da hoto tare a message guda, dangane da yadda aka
-        //    tsara chat template dinsa).
-        // 2) In babu hoto, MedGemma ke bincika rubutun kai tsaye.
+        // ── Duba ko user ɗin Pro/Paid ne ──
+        // MUHIMMI: Ka canza wannan path (`users/${req.uid}/isPro`) domin ya
+        // dace da ainihin tsarin database ɗinka na membership/subscription.
+        const db = admin.database();
+        const tierSnap = await db.ref(`users/${req.uid}/isPro`).once('value');
+        const isPro = tierSnap.exists() && tierSnap.val() === true;
+
         const systemPrompt = "You are Nexus Intelligence, a careful medical triage assistant. You are NOT a doctor and must never give a final diagnosis. Assess the symptom described and clearly state: (1) whether this seems safe to self-manage at home, (2) practical self-care advice if safe, (3) whether the person should see a doctor and how urgently. Always end by reminding them this is not a diagnosis.";
 
-        const messages = [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: image ? [
-                { type: "text", text: text || "Please look at this photo and tell me what you see." },
-                { type: "image_url", image_url: { url: image } }
-            ] : text }
-        ];
+        let clinicalReply;
 
-        const clinicalReply = await callHuggingFace(CLINICAL_MODEL, messages);
+        if (isPro) {
+            // ── PAID: MedGemma 1.5 4B (multimodal — na iya duba hoto) ──
+            const messages = [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: image ? [
+                    { type: "text", text: text || "Please look at this photo and tell me what you see." },
+                    { type: "image_url", image_url: { url: image } }
+                ] : text }
+            ];
+            clinicalReply = await callMedGemmaEndpoint(messages);
 
-        // Idan harshen da aka zaba ba Turanci ba ne, mu wuce ta Llama don fassara
+        } else {
+            // ── FREE: Llama-3.3-70B ta Groq ──
+            // MUHIMMI: Llama-3.3-70B TEXT-ONLY ce (ba multimodal ba). Idan free
+            // user ya aika hoto, ba za a iya nazarce shi ba — dole ya koma Pro.
+            if (image) {
+                return res.status(403).json({
+                    error: "image_requires_pro",
+                    reply: "Nazarin hoto na bukatar asusun Pro. Da fatan za ka rubuta alamomin cutar a matsayin rubutu, ko ka koma Pro don nazarin hoto."
+                });
+            }
+            const messages = [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: text }
+            ];
+            clinicalReply = await callGroqWithFailover('llama-3.3-70b-versatile', messages, 500, 0.3);
+        }
+
+        // ── Fassara zuwa wani harshe (misali Hausa) idan aka bukaci ──
         let finalReply = clinicalReply;
         if (lang && lang !== 'en') {
             const translationMessages = [
                 { role: "system", content: `Translate the following medical guidance into ${lang}, keeping it warm, clear, and accurate. Do not add or remove any medical information.` },
                 { role: "user", content: clinicalReply }
             ];
-            finalReply = await callHuggingFace(CONVERSATIONAL_MODEL, translationMessages);
+            finalReply = await callHuggingFaceRouter(TRANSLATION_MODEL, translationMessages);
         }
 
-        res.json({ reply: finalReply });
+        res.json({ reply: finalReply, tier: isPro ? 'pro' : 'free' });
 
     } catch (err) {
         console.error("AI Triage error:", err.message);
