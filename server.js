@@ -548,6 +548,50 @@ app.post('/check-due-reminders', async (req, res) => {
     }
 });
 
+// ════════════════════════════════════════════════════════════
+//  PATIENT MEMORY — dawwamammen taƙaitaccen bayanin lafiya, na
+//  KOWANE UNIT DABAM (contextKey). Ana sabunta shi bayan kowace
+//  tattaunawa domin AI ya "tuna" majiyyaci idan ya dawo bayan
+//  shekaru, kamar yadda kwararren likita zai duba file ɗin
+//  majiyyaci kafin ganawa — amma KAWAI file na wannan sashe.
+// ════════════════════════════════════════════════════════════
+
+const PROFILE_SUMMARY_PROMPT = `You are a clinical documentation assistant. You will be given (1) a patient's EXISTING medical profile summary for this specific specialty unit, and (2) a NEW conversation transcript from today's visit to the same unit.
+
+Produce an UPDATED profile summary that merges the old and new information. Rules:
+- Keep it concise: bullet points, clinical shorthand style, under 150 words total.
+- Preserve important persistent facts from the old summary (allergies, chronic conditions, recurring symptoms, past advice given) unless the new conversation contradicts or updates them.
+- Add new relevant facts from today's conversation: new symptoms, patterns, dates if mentioned, self-care tried, outcomes.
+- Do NOT invent information that wasn't stated. If uncertain, omit it.
+- Write in plain clinical English, third person (e.g., "Patient reports recurring morning headaches since ~3 weeks, denies vision changes. Advised hydration + OTC analgesic; outcome unknown.").
+- Output ONLY the updated summary text. No preamble, no markdown headers.`;
+
+async function updateMedicalProfile(uid, contextKey, conversationHistory) {
+    try {
+        const db = admin.database();
+        const profileSnap = await db.ref(`users/${uid}/medicalProfile/${contextKey}`).once('value');
+        const existingSummary = profileSnap.exists() ? profileSnap.val().summary : '(No prior visits to this unit.)';
+
+        const transcript = conversationHistory
+            .map(m => `${m.role === 'user' ? 'Patient' : 'Assistant'}: ${m.content}`)
+            .join('\n');
+
+        const messages = [
+            { role: 'system', content: PROFILE_SUMMARY_PROMPT },
+            { role: 'user', content: `EXISTING PROFILE SUMMARY:\n${existingSummary}\n\nNEW CONVERSATION TRANSCRIPT:\n${transcript}` }
+        ];
+
+        const updatedSummary = await callGroqWithFailover(TEXT_MODEL_CHAIN.simple, messages, 300, 0.2);
+
+        await db.ref(`users/${uid}/medicalProfile/${contextKey}`).set({
+            summary: updatedSummary.trim(),
+            updatedAt: Date.now()
+        });
+    } catch (err) {
+        console.error('updateMedicalProfile error:', err.message);
+        // Kada mu bari wannan ya karya babban ai-triage request — kawai mu rubuta kuskuren.
+    }
+}
 app.post('/ai-triage', requireAuth, async (req, res) => {
     try {
         const { text, image, structuredData, lang, history } = req.body;
