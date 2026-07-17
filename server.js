@@ -594,9 +594,9 @@ async function updateMedicalProfile(uid, contextKey, conversationHistory) {
 }
 app.post('/ai-triage', requireAuth, async (req, res) => {
     try {
-        const { text, image, structuredData, lang, history } = req.body;
+        const { text, image, structuredData, lang, history, contextKey } = req.body;
         const conversationHistory = Array.isArray(history) ? history : [];
-
+        const safeContextKey = (contextKey && typeof contextKey === 'string') ? contextKey : 'general';
         if (!text && !image && !structuredData) {
             return res.status(400).json({ error: "No text, image, or structured data provided." });
         }
@@ -673,16 +673,23 @@ Confident, warm, and reassuring — like a trusted, excellent doctor who has tim
 
         } else {
             // ── RUBUTU NA YAU DA KULLUM (Free DA Pro duka): GPT-OSS 120B / Kimi K2 ──
+            const profileSnap = await db.ref(`users/${req.uid}/medicalProfile/${safeContextKey}`).once('value');
+            const priorProfile = profileSnap.exists() ? profileSnap.val().summary : null;
+
+            let systemPromptWithMemory = TEXT_MODEL_SYSTEM_PROMPT;
+            if (priorProfile) {
+                systemPromptWithMemory += `\n\n## PATIENT MEMORY FOR THIS UNIT\nYou have seen this patient before in this specific unit. Here is their known background from prior visits:\n${priorProfile}\n\nUse this naturally, the way an experienced specialist would recall a returning patient's chart — reference relevant history where helpful, don't re-ask what you already know unless clarification is genuinely needed, and note if today's symptoms seem connected to past visits.`;
+            }
+
             const messages = [
-                { role: "system", content: TEXT_MODEL_SYSTEM_PROMPT },
+                { role: "system", content: systemPromptWithMemory },
                 ...conversationHistory,
                 { role: "user", content: text }
             ];
             const historyTokenEstimate = conversationHistory.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0) / 4;
             const preferredModel = classifyTextModel(text, historyTokenEstimate);
             clinicalReply = await callTextModelChain(messages, preferredModel);
-        }
-
+                 }
         // ── Fassara zuwa wani harshe (misali Hausa) idan aka bukaci ──
         let finalReply = clinicalReply;
         if (lang && lang !== 'en') {
@@ -694,6 +701,12 @@ Confident, warm, and reassuring — like a trusted, excellent doctor who has tim
         }
 
         res.json({ reply: finalReply, tier: isPro ? 'pro' : 'free' });
+
+        // ── Sabunta Patient Memory a BACKGROUND (bayan an amsa wa user, ba tare da jiran ba) ──
+        if (!needsClinicalSpecialist) {
+            const fullTranscript = [...conversationHistory, { role: 'user', content: text }, { role: 'assistant', content: clinicalReply }];
+            updateMedicalProfile(req.uid, safeContextKey, fullTranscript);
+        }
 
     } catch (err) {
         console.error("AI Triage error:", err.message);
