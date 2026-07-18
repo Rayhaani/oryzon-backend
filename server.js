@@ -404,7 +404,7 @@ async function callTextModelChain(messages, preferredModel) {
     let lastError = null;
     for (const model of chain) {
         try {
-            return await callGroqWithFailover(model, messages, 1200, 0.3);
+            return await callGroqWithFailover(model, messages, 2000, 0.3);
         } catch (err) {
             lastError = err.message;
             console.warn(`⚠️ Text model ${model} ya kasa, ana gwada na gaba... (${err.message})`);
