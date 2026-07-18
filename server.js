@@ -477,6 +477,52 @@ app.get('/meds/:profileId', requireAuth, async (req, res) => {
     }
 });
 
+// ════════════════════════════════════════════════════════════
+//  SOCIAL SHARE PREVIEW — domin WhatsApp/Facebook/Telegram su
+//  iya karanta og:image/og:title tun kafin JS ta gudana a client
+// ════════════════════════════════════════════════════════════
+app.get('/share/:username', async (req, res) => {
+    try {
+        const db = admin.database();
+        const snap = await db.ref('providers/' + req.params.username).once('value');
+        const data = snap.val();
+
+        const appUrl = 'https://rayhaani.github.io/Oryzon/services.html?pro=' + encodeURIComponent(req.params.username);
+
+        if (!data) {
+            return res.redirect(appUrl);
+        }
+
+        const title = (data.businessName || req.params.username) + ' — Nexus';
+        const description = data.bio || (data.categoryLabel ? 'Order from ' + (data.businessName || req.params.username) + ' on Nexus' : 'View this business on Nexus');
+        const image = data.menuImageUrl || 'https://rayhaani.github.io/Oryzon/default-share-image.png';
+
+        res.send(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${title}</title>
+<meta property="og:title" content="${title}">
+<meta property="og:description" content="${description}">
+<meta property="og:image" content="${image}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="${appUrl}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${title}">
+<meta name="twitter:description" content="${description}">
+<meta name="twitter:image" content="${image}">
+<meta http-equiv="refresh" content="0;url=${appUrl}">
+</head>
+<body>
+<p>Redirecting to <a href="${appUrl}">${title}</a>...</p>
+</body>
+</html>`);
+    } catch (err) {
+        console.error('Share preview error:', err.message);
+        res.redirect('https://rayhaani.github.io/Oryzon/services.html');
+    }
+});
+
 app.post('/meds/:profileId', requireAuth, async (req, res) => {
     try {
         const { name, time, freq } = req.body;
