@@ -329,7 +329,7 @@ app.post('/api/chat', async (req, res) => {
 
     try {
         const reply = await callGroqWithFailover(
-            'meta-llama/llama-4-scout-17b-16e-instruct',
+            TEXT_MODEL_CHAIN.simple,
             [{ role: 'system', content: systemPrompt }, ...messages]
         );
         res.json({ choices: [{ message: { content: reply } }] });
