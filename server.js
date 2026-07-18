@@ -638,6 +638,9 @@ Do not dump a full report after a single vague message (e.g. just "Headache"). I
 7. **Clear next step** — tell them plainly whether this can likely be managed at home, or whether and how urgently they should see a doctor, and why.
 8. **Honest closing note** — a brief, warm reminder that this is guidance only, not a diagnosis, and that a real exam may reveal things this conversation cannot.
 
+## LANGUAGE
+Always detect the language the patient is writing in from their message, and respond ENTIRELY in that same language — regardless of what language this system prompt is written in. If the patient switches languages mid-conversation, switch with them. Maintain the same warm, clinical quality of your response in every language; do not simplify or shorten your reasoning just because you're responding in a non-English language.
+
 ## TONE
 Confident, warm, and reassuring — like a trusted, excellent doctor who has time for you. Never robotic or dismissive. Never cold. Always caring. Never break character or claim to be anything other than an AI assistant if asked directly.`;
         // MedGemma na bukatar Pro don DUKA hoto (X-ray, fata, nama) DA
@@ -680,19 +683,23 @@ Confident, warm, and reassuring — like a trusted, excellent doctor who has tim
             if (priorProfile) {
                 systemPromptWithMemory += `\n\n## PATIENT MEMORY FOR THIS UNIT\nYou have seen this patient before in this specific unit. Here is their known background from prior visits:\n${priorProfile}\n\nUse this naturally, the way an experienced specialist would recall a returning patient's chart — reference relevant history where helpful, don't re-ask what you already know unless clarification is genuinely needed, and note if today's symptoms seem connected to past visits.`;
             }
-
+          const cleanHistory = conversationHistory.map(m => ({ role: m.role, content: m.content }));
             const messages = [
                 { role: "system", content: systemPromptWithMemory },
-                ...conversationHistory,
+                ...cleanHistory,
                 { role: "user", content: text }
             ];
             const historyTokenEstimate = conversationHistory.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0) / 4;
             const preferredModel = classifyTextModel(text, historyTokenEstimate);
-            clinicalReply = await callTextModelChain(messages, preferredModel);
-                 }
-        // ── Fassara zuwa wani harshe (misali Hausa) idan aka bukaci ──
+            clinicalReply = await callTextModelChain(messages, preferredModel); 
+        }
+        // ── Harshe: AI ɗin da kansa ya riga ya amsa da harshen mai amfani ──
+        // (auto-detect a system prompt, babu bukatar fassara ta biyu don
+        // rubutu na yau da kullum). Fassara ta HF Router yanzu KAWAI don
+        // MedGemma (image path), tunda system prompt ɗinta ba ta da
+        // umarnin auto-language kamar TEXT_MODEL_SYSTEM_PROMPT.
         let finalReply = clinicalReply;
-        if (lang && lang !== 'en') {
+        if (needsClinicalSpecialist && lang && lang !== 'en') {
             const translationMessages = [
                 { role: "system", content: `Translate the following medical guidance into ${lang}, keeping it warm, clear, and accurate. Do not add or remove any medical information.` },
                 { role: "user", content: clinicalReply }
@@ -701,7 +708,6 @@ Confident, warm, and reassuring — like a trusted, excellent doctor who has tim
         }
 
         res.json({ reply: finalReply, tier: isPro ? 'pro' : 'free' });
-
         // ── Sabunta Patient Memory a BACKGROUND (bayan an amsa wa user, ba tare da jiran ba) ──
         if (!needsClinicalSpecialist) {
             const fullTranscript = [...conversationHistory, { role: 'user', content: text }, { role: 'assistant', content: clinicalReply }];
