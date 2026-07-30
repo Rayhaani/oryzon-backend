@@ -171,6 +171,35 @@ app.delete('/verification-delete', requireAuth, requireAdmin, async (req, res) =
 app.get('/', (req, res) => res.json({ status: 'Oryzon Media Server yana aiki!' }));
 
 // ════════════════════════════════════════════════════════════
+//  LIVEKIT — token generation domin Live Streaming
+// ════════════════════════════════════════════════════════════
+const { AccessToken } = require('livekit-server-sdk');
+
+app.post('/livekit-token', requireAuth, async (req, res) => {
+    try {
+        const { room, canPublish } = req.body;
+        if (!room) return res.status(400).json({ error: 'Babu sunan room' });
+
+        const at = new AccessToken(
+            process.env.LIVEKIT_API_KEY,
+            process.env.LIVEKIT_API_SECRET,
+            { identity: req.uid }
+        );
+        at.addGrant({
+            room,
+            roomJoin: true,
+            canPublish: Boolean(canPublish),
+            canSubscribe: true
+        });
+
+        const token = await at.toJwt();
+        res.json({ success: true, token, url: process.env.LIVEKIT_URL });
+    } catch (err) {
+        console.error('livekit-token error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+// ════════════════════════════════════════════════════════════
 //  FCM PUSH NOTIFICATION ENDPOINTS
 // ════════════════════════════════════════════════════════════
 
