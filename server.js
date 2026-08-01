@@ -275,13 +275,18 @@ app.post('/get-custom-token', async (req, res) => {
     const { username } = req.body;
     if (!username) return res.status(400).json({ success: false });
     try {
-        const token = await admin.auth().createCustomToken(username);
+        const db = admin.database();
+        const snap = await db.ref(`usernames/${username}`).once('value');
+        if (!snap.exists()) {
+            return res.status(404).json({ success: false, error: 'Username ba a samu ba a usernames node' });
+        }
+        const realUid = snap.val();
+        const token = await admin.auth().createCustomToken(realUid);
         res.json({ success: true, token });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
 });
-
 // ════════════════════════════════════════════════════════════
 //  GROQ KEYS — jerin duk API keys ɗin Groq (za a iya ƙara nawa
 //  kake so ta hanyar saka GROQ_API_KEY_4, GROQ_API_KEY_5, da sauransu
