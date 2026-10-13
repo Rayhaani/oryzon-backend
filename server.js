@@ -4,6 +4,7 @@ const AWS = require('aws-sdk');
 const cors = require('cors');
 const path = require('path');
 const admin = require('firebase-admin');
+const sharp = require('sharp');
 
 const app = express();
 app.use(cors());
@@ -85,14 +86,27 @@ app.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
             Bucket: BUCKET,
             Key: fileName,
             Body: req.file.buffer,
-            ContentType: req.file.mimetype
+            ContentType: req.file.mimetype,
+            CacheControl: 'public, max-age=31536000, immutable'
         };
 
         await s3.upload(params).promise();
+        // Thumbnail (480px WebP) — idan hoto ne. Idan ya gaza, upload na asali ba ya lalacewa.
+        let thumbUrl = null;
+        try {
+            if (req.file.mimetype.startsWith('image/') && !/gif|svg/.test(req.file.mimetype)) {
+                const thumbKey = `thumbs/${fileName.replace(/\.[^./]+$/, '')}.webp`;
+                const thumbBuf = await sharp(req.file.buffer).rotate().resize({ width: 480, withoutEnlargement: true }).webp({ quality: 72 }).toBuffer();
+                await s3.upload({ Bucket: BUCKET, Key: thumbKey, Body: thumbBuf, ContentType: 'image/webp', CacheControl: 'public, max-age=31536000, immutable' }).promise();
+                thumbUrl = `https://${BUCKET}.s3.us-east-005.backblazeb2.com/${thumbKey}`;
+            }
+        } catch (thumbErr) {
+            console.error('Thumbnail error:', thumbErr.message);
+        }
 
         const url = `https://${BUCKET}.s3.us-east-005.backblazeb2.com/${fileName}`;
 
-        res.json({ success: true, url, key: fileName });
+    res.json({ success: true, url, key: fileName, thumbUrl });
 
     } catch (err) {
         console.error('Upload error:', err);
