@@ -98,6 +98,9 @@ app.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
                 const thumbKey = `thumbs/${fileName.replace(/\.[^./]+$/, '')}.webp`;
                 const thumbBuf = await sharp(req.file.buffer).rotate().resize({ width: 480, withoutEnlargement: true }).webp({ quality: 72 }).toBuffer();
                 await s3.upload({ Bucket: BUCKET, Key: thumbKey, Body: thumbBuf, ContentType: 'image/webp', CacheControl: 'public, max-age=31536000, immutable' }).promise();
+                const medKey = `medium/${fileName.replace(/\.[^./]+$/, '')}.webp`;
+                const medBuf = await sharp(req.file.buffer).rotate().resize({ width: 720, withoutEnlargement: true }).webp({ quality: 74 }).toBuffer();
+                await s3.upload({ Bucket: BUCKET, Key: medKey, Body: medBuf, ContentType: 'image/webp', CacheControl: 'public, max-age=31536000, immutable' }).promise();
                 thumbUrl = `https://${BUCKET}.s3.us-east-005.backblazeb2.com/${thumbKey}`;
             }
         } catch (thumbErr) {
@@ -126,6 +129,64 @@ app.delete('/delete', requireAuth, async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+// ═════════════════════════════
+//  ƘAURA (sau ɗaya): ƙirƙiri hotunan 720px ("medium") na hotunan da suka riga suke.
+//  Bayan an gama, a goge wadannan endpoints guda biyu da ADMIN_SECRET.
+// ═════════════════════════════
+app.get('/admin/generate-medium', async (req, res) => {
+    if (!process.env.ADMIN_SECRET || req.query.secret !== process.env.ADMIN_SECRET) {
+        return res.status(403).json({ error: 'forbidden' });
+    }
+    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 30);
+    const out = { created: 0, skipped: 0, failed: 0, next: null };
+    try {
+        const list = await s3.listObjectsV2({
+            Bucket: BUCKET,
+            Prefix: req.query.prefix || '',
+            MaxKeys: limit,
+            ContinuationToken: req.query.token || undefined
+        }).promise();
+        for (const obj of list.Contents || []) {
+            const key = obj.Key;
+            if (key.startsWith('thumbs/') || key.startsWith('medium/') || !/\.(jpe?g|png|webp)$/i.test(key)) { out.skipped++; continue; }
+            const medKey = `medium/${key.replace(/\.[^./]+$/, '')}.webp`;
+            try {
+                try { await s3.headObject({ Bucket: BUCKET, Key: medKey }).promise(); out.skipped++; continue; } catch (e) { /* babu, a ƙirƙira */ }
+                const src = await s3.getObject({ Bucket: BUCKET, Key: key }).promise();
+                const buf = await sharp(src.Body).rotate().resize({ width: 720, withoutEnlargement: true }).webp({ quality: 74 }).toBuffer();
+                await s3.upload({ Bucket: BUCKET, Key: medKey, Body: buf, ContentType: 'image/webp', CacheControl: 'public, max-age=31536000, immutable' }).promise();
+                out.created++;
+            } catch (e) {
+                console.error('Medium failed:', key, e.message);
+                out.failed++;
+            }
+        }
+        out.next = list.IsTruncated ? list.NextContinuationToken : null;
+        res.json(out);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/admin/medium-page', (req, res) => {
+    if (!process.env.ADMIN_SECRET || req.query.secret !== process.env.ADMIN_SECRET) {
+        return res.status(403).send('forbidden');
+    }
+    const secret = encodeURIComponent(req.query.secret);
+    res.send(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="background:#111;color:#eee;font:16px sans-serif;padding:20px"><h3>Kirkirar hotunan medium</h3><pre id="o">Ana farawa...</pre><script>
+(async () => {
+  const o = document.getElementById('o');
+  let t = '', tot = { created: 0, skipped: 0, failed: 0 };
+  do {
+    const r = await (await fetch('/admin/generate-medium?secret=${secret}&limit=10' + (t ? '&token=' + encodeURIComponent(t) : ''))).json();
+    if (r.error) { o.textContent = 'KURAKURAI: ' + r.error; return; }
+    tot.created += r.created; tot.skipped += r.skipped; tot.failed += r.failed;
+    t = r.next || '';
+    o.textContent = 'An kirkira: ' + tot.created + '\\nAn tsallake: ' + tot.skipped + '\\nSun kasa: ' + tot.failed + (t ? '\\n\\nAna ci gaba... kar ka rufe page din' : '\\n\\nGAMA');
+  } while (t);
+})();
+</script>`);
 });
 // ════════════════════════════════════════════════════════════
 //  ENDPOINTS NA ID/SELFIE VERIFICATION (private bucket + auth)
