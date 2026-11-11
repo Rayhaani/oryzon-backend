@@ -454,6 +454,31 @@ app.post('/translate', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+app.get('/admin/backfill-members', async (req, res) => {
+    if (!process.env.ADMIN_SECRET || req.query.secret !== process.env.ADMIN_SECRET) {
+        return res.status(403).json({ error: 'forbidden' });
+    }
+    try {
+        const fs = admin.firestore();
+        const snap = await fs.collection('personalChats').get();
+        let updated = 0, skipped = 0, bad = 0, n = 0;
+        let batch = fs.batch();
+        for (const doc of snap.docs) {
+            const d = doc.data();
+            if (Array.isArray(d.members) && d.members.length) { skipped++; continue; }
+            const parts = doc.id.split('__');
+            if (parts.length !== 2 || !parts[0] || !parts[1]) { bad++; continue; }
+            batch.set(doc.ref, { members: parts }, { merge: true });
+            updated++; n++;
+            if (n >= 400) { await batch.commit(); batch = fs.batch(); n = 0; }
+        }
+        if (n > 0) await batch.commit();
+        res.json({ total: snap.size, updated, skipped, bad });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
 
 
