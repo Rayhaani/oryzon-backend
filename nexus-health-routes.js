@@ -51,7 +51,7 @@ function create(deps) {
     if (!tokens.length) return { sent: 0 };
     const r = await admin.messaging().sendEachForMulticast({
       tokens, notification: { title, body }, data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
-      webpush: { fcmOptions: { link: '/health.html' } }
+   webpush: { fcmOptions: { link: 'https://rayhaani.github.io/Oryzon/health.html' } }
     });
     const dead = [];
     r.responses.forEach((x, i) => { if (!x.success && /registration-token-not-registered|invalid-argument|invalid-registration/.test((x.error && x.error.code) || '')) dead.push(tokens[i]); });
