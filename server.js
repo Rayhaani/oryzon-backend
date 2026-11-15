@@ -8,7 +8,7 @@ const sharp = require('sharp');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use((req, res, next) => req.path.startsWith('/health/backup') ? next() : express.json()(req, res, next));
 
 // ────────────────────────────────────────────────────────────
 //  FIREBASE ADMIN — don tabbatar wanene yake kira API ɗinmu
@@ -452,7 +452,13 @@ app.post('/translate', async (req, res) => {
         res.status(500).json({ error: 'translate failed' });
     }
 });
-
+const mountHealth = require('./nexus-health-routes');
+mountHealth(app, {
+    admin,
+    express,
+    adminUids: [ADMIN_UID],
+    cronSecret: process.env.HEALTH_CRON_SECRET
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
 
