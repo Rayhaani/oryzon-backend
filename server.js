@@ -8,7 +8,7 @@ const sharp = require('sharp');
 
 const app = express();
 app.use(cors());
-app.use((req, res, next) => req.path.startsWith('/health/backup') ? next() : express.json({ verify: (r, s, buf) => { r.rawBody = buf; } })(req, res, next));
+app.use((req, res, next) => req.path.startsWith('/health/backup') ? next() : express.json({ limit: req.path === '/premium/meal-scan' ? '6mb' : '100kb', verify: (r, s, buf) => { r.rawBody = buf; } })(req, res, next));
 
 // ────────────────────────────────────────────────────────────
 //  FIREBASE ADMIN — don tabbatar wanene yake kira API ɗinmu
