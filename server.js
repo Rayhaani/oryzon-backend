@@ -8,7 +8,7 @@ const sharp = require('sharp');
 
 const app = express();
 app.use(cors());
-app.use((req, res, next) => req.path.startsWith('/health/backup') ? next() : express.json()(req, res, next));
+app.use((req, res, next) => req.path.startsWith('/health/backup') ? next() : express.json({ verify: (r, s, buf) => { r.rawBody = buf; } })(req, res, next));
 
 // ────────────────────────────────────────────────────────────
 //  FIREBASE ADMIN — don tabbatar wanene yake kira API ɗinmu
@@ -139,7 +139,7 @@ app.post('/upload-verification', requireAuth, upload.single('file'), async (req,
         if (!req.file) return res.status(400).json({ error: 'Babu file' });
 
         const { docType } = req.body;   // "id" ko "selfie"
-        if (!['id', 'selfie'].includes(docType)) {
+        if (!['id', 'id-back', 'selfie', 'business-doc'].includes(docType)) {
             return res.status(400).json({ error: 'docType dole ya zama id ko selfie' });
         }
 
@@ -458,6 +458,24 @@ mountHealth(app, {
     express,
     adminUids: [ADMIN_UID],
     cronSecret: process.env.HEALTH_CRON_SECRET
+});
+const mountVerify = require('./nexus-verify-routes');
+mountVerify(app, {
+    admin,
+    adminUids: [ADMIN_UID],
+    cronSecret: process.env.VERIFY_CRON_SECRET,
+    deleteDocs: keys => Promise.all(keys.map(k => s3.deleteObject({ Bucket: VERIFICATION_BUCKET, Key: k }).promise())),
+    payments: { mode: 'free' }
+});
+
+const mountPremium = require('./nexus-premium-routes');
+mountPremium(app, {
+    admin,
+    adminUids: [ADMIN_UID],
+    callModel: (model, messages, maxTokens, temp) => callGroqWithFailover(model, messages, maxTokens, temp),
+    textModel: 'openai/gpt-oss-120b',
+    visionModel: process.env.MEAL_VISION_MODEL || 'qwen/qwen3.8-27b',
+    payments: { mode: 'free' }
 });
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
