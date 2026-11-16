@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Get Verified — Oryzon</title>
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+    :root { --gold:#fde08d; --muted:rgba(255,255,255,0.55); --line:rgba(255,255,255,0.08); --card:rgba(255,255,255,0.05); }
+    body { background:#050505; color:#fff; font-family:'Inter', sans-serif; padding-bottom:130px; -webkit-font-smoothing:antialiased; }
+    .hidden { display:none !important; }
+    .icon-btn { display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#fff; flex-shrink:0; }
+    .icon-btn svg { display:block; }
+
+    /* ===== HEADER ===== */
+    .hdr { position:sticky; top:0; z-index:50; background:#050505; padding:14px 14px 12px; }
+    .hdr-row { position:relative; display:flex; align-items:center; min-height:24px; }
+    .hdr-title { position:absolute; left:0; right:0; text-align:center; font-size:17px; font-weight:700; pointer-events:none; }
+    .hdr-row .icon-btn svg { width:21px; height:21px; }
+    .steps { display:flex; gap:5px; margin-top:14px; }
+    .steps i { flex:1; height:4px; border-radius:3px; background:rgba(255,255,255,0.1); display:block; }
+    .steps i.done { background:var(--gold); }
+
+    .wrap { padding:6px 18px 0; }
+
+    /* ===== HERO ===== */
+    .hero { text-align:center; padding:14px 0 6px; }
+    .hero-badge { width:96px; height:96px; margin:0 auto 16px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 40%, rgba(253,224,141,0.16), rgba(253,224,141,0) 70%); }
+
+    /* ===== ANIMATED TIER HERO (WebGL vortex background, one palette per tier) ===== */
+    .hdr.clear { position:fixed; left:0; right:0; background:transparent; padding-bottom:0; pointer-events:none; }
+    .hdr.clear .hdr-title { display:none; }
+    .hdr.clear .icon-btn { pointer-events:auto; width:38px; height:38px; border-radius:50%; background:rgba(0,0,0,0.35); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+    .tier-hero { position:relative; min-height:540px; margin:-6px -18px 0; overflow:hidden; background:#000; display:flex; flex-direction:column; align-items:center; padding:74px 18px 96px; }
+    .tier-hero::after { content:''; position:absolute; left:0; right:0; bottom:0; height:80px; background:linear-gradient(to bottom, rgba(5,5,5,0), #050505); z-index:1; pointer-events:none; }
+    .tier-hero .bg { position:absolute; inset:0; animation:bgIn .8s ease both; }
+    .tier-hero .bg canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+    @keyframes bgIn { from{ opacity:0; } to{ opacity:1; } }
+    .bl { position:absolute; aspect-ratio:1; border-radius:50%; filter:blur(38px); mix-blend-mode:screen; }   /* fallback if WebGL is unavailable */
+    .bl.b1 { width:95%; left:-25%; top:-12%; background:radial-gradient(circle, var(--c1), transparent 66%); animation:drift1 9s ease-in-out infinite alternate; }
+    .bl.b2 { width:85%; right:-30%; top:18%; background:radial-gradient(circle, var(--c2), transparent 66%); animation:drift2 11s ease-in-out infinite alternate; }
+    .bl.b3 { width:80%; left:8%; bottom:-34%; background:radial-gradient(circle, var(--c3), transparent 66%); animation:drift3 13s ease-in-out infinite alternate; }
+    @keyframes drift1 { from{ transform:translate(-10%,6%) scale(1); }    to{ transform:translate(16%,-8%) scale(1.25); } }
+    @keyframes drift2 { from{ transform:translate(10%,-6%) scale(1.15); } to{ transform:translate(-18%,10%) scale(0.95); } }
+    @keyframes drift3 { from{ transform:translate(-14%,4%) scale(1); }    to{ transform:translate(14%,-10%) scale(1.2); } }
+    .gm-title { position:relative; z-index:2; font-size:27px; font-weight:800; letter-spacing:-0.5px; text-align:center; line-height:1.15; text-shadow:0 3px 18px rgba(0,0,0,0.55); }
+    .av { position:relative; z-index:2; width:88px; height:88px; margin-top:22px; border-radius:50%; background:#1a1a1d; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.45); border:2px solid rgba(255,255,255,0.18); }
+    .av img { width:100%; height:100%; object-fit:cover; display:block; }
+    .av-name { position:relative; z-index:2; margin-top:12px; display:flex; align-items:center; gap:6px; font-size:19px; font-weight:700; text-shadow:0 2px 12px rgba(0,0,0,0.6); }
+    .tier-hero-name { position:relative; z-index:2; margin-top:auto; font-size:50px; font-weight:800; letter-spacing:-1.3px; color:#fff; text-shadow:0 4px 28px rgba(0,0,0,0.6); line-height:1; }
+    .tier-tabs { position:absolute; left:0; right:0; bottom:22px; z-index:3; display:flex; gap:8px; overflow-x:auto; padding:0 18px; scrollbar-width:none; }
+    .tier-tabs::-webkit-scrollbar { display:none; }
+    .tier-tabs span { flex:0 0 auto; padding:10px 20px; border-radius:22px; font-size:14.5px; font-weight:700; color:rgba(255,255,255,0.62); cursor:pointer; white-space:nowrap; transition:background .2s, color .2s; }
+    .tier-tabs span.on { background:#fff; color:#000; }
+    .hero p.tagline { padding:0 18px; }
+    .hero h1 { font-size:26px; font-weight:800; letter-spacing:-0.4px; line-height:1.15; }
+    .hero p { font-size:14px; color:var(--muted); line-height:1.5; margin:10px auto 0; max-width:320px; }
+
+    /* ===== LIVE PREVIEW (replica of the real post header) ===== */
+    .preview-label { font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--muted); margin:22px 0 8px; }
+    .ph { display:flex; align-items:center; gap:10px; height:58px; padding:0 14px 0 8px; border-radius:30px; border:1px solid rgba(253,224,141,0.5);
+        background:radial-gradient(ellipse 90% 140% at 48% 0%, #F8D9A2 0%, #E3C48D 22%, #C09060 50%, #A77542 72%, #8B5B2D 100%); }
+    .ph-avatar { overflow:hidden; width:42px; height:42px; border-radius:50%; background:#1b1b1b; border:1px solid rgba(253,224,141,0.6); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,0.35); }
+    .ph-avatar svg { width:20px; height:20px; }
+    .ph-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+    .ph-name { font-size:14.5px; font-weight:900; color:#fff; display:flex; align-items:center; gap:4px; text-shadow:0 1px 3px rgba(0,0,0,0.55); letter-spacing:0.2px; }
+    .ph-user { font-size:12px; font-weight:700; color:rgba(255,255,255,0.88); text-shadow:0 1px 2px rgba(0,0,0,0.5); margin-top:1px; }
+
+    /* ===== SECTION TITLES ===== */
+    .sec { font-size:12px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--muted); margin:28px 0 12px; }
+
+    /* ===== TYPE CARDS (no longer shown on the landing page) ===== */
+    .type-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .type-card { background:var(--card); border:1.5px solid var(--line); border-radius:16px; padding:14px 13px; cursor:pointer; transition:border-color .15s, background .15s; }
+    .type-card.sel { border-color:var(--gold); background:rgba(253,224,141,0.07); }
+    .type-top { display:flex; align-items:center; justify-content:space-between; }
+    .type-name { font-size:14.5px; font-weight:800; margin-top:10px; }
+    .type-desc { font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.4; }
+    .radio { width:18px; height:18px; border-radius:50%; border:1.5px solid rgba(255,255,255,0.3); display:flex; align-items:center; justify-content:center; }
+    .type-card.sel .radio { border-color:var(--gold); }
+    .type-card.sel .radio::after { content:''; width:9px; height:9px; border-radius:50%; background:var(--gold); }
+    .swatch { width:30px; height:30px; display:flex; align-items:center; justify-content:center; }
+
+    /* ===== BENEFITS ===== */
+    .benefit { display:flex; gap:13px; padding:13px 0; border-bottom:1px solid var(--line); }
+    .benefit:last-child { border-bottom:none; }
+    .b-ico { width:38px; height:38px; border-radius:11px; background:var(--card); display:flex; align-items:center; justify-content:center; color:var(--gold); flex-shrink:0; }
+    .b-ico svg { width:19px; height:19px; }
+    .benefit.off { opacity:0.45; }
+    .benefit.off .b-ico { color:var(--muted); }
+    .b-note { font-size:12.5px; font-weight:600; color:#3ddc84; margin-top:3px; }
+    .b-title { font-size:14px; font-weight:700; }
+    .b-desc { font-size:12.5px; color:var(--muted); margin-top:3px; line-height:1.45; }
+
+    /* ===== PRICING ===== */
+    .seg { display:flex; background:rgba(255,255,255,0.06); border-radius:18px; padding:4px; }
+    .seg span { flex:1; text-align:center; font-size:13px; font-weight:700; padding:8px 0; border-radius:15px; cursor:pointer; color:#fff; }
+    .seg span.on { background:rgba(255,255,255,0.14); }
+    .seg em { font-style:normal; font-size:10.5px; font-weight:800; color:#3ddc84; margin-left:5px; }
+    .price-card { margin-top:14px; background:var(--card); border:1px solid var(--line); border-radius:18px; padding:18px; }
+    .price-row { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
+    .price { font-size:32px; font-weight:800; letter-spacing:-0.8px; line-height:1; }
+    .price small { font-size:14px; font-weight:600; color:var(--muted); letter-spacing:0; }
+    .price-note { font-size:12px; color:var(--muted); margin-top:8px; }
+    .cur { background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); color:#fff; font-family:'Inter',sans-serif; font-size:12px; font-weight:600; padding:7px 9px; border-radius:9px; outline:none; }
+    .assure { display:flex; flex-direction:column; gap:9px; margin-top:16px; padding-top:16px; border-top:1px solid var(--line); }
+    .assure div { display:flex; gap:9px; align-items:center; font-size:12.5px; color:rgba(255,255,255,0.8); }
+    .assure svg { width:16px; height:16px; color:#3ddc84; flex-shrink:0; }
+
+    /* ===== FAQ ===== */
+    .help-link { display:flex; align-items:center; gap:8px; justify-content:center; font-size:12.5px; font-weight:600; color:var(--muted); margin:26px 0 6px; cursor:pointer; }
+    .help-link svg { width:15px; height:15px; flex-shrink:0; }
+
+    /* ===== FOOTER CTA ===== */
+    .foot { position:fixed; left:0; right:0; bottom:0; background:rgba(5,5,5,0.94); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-top:1px solid var(--line); padding:12px 18px 16px; z-index:45; }
+    .foot-row { display:flex; gap:10px; }
+    .btn { flex:1; text-align:center; padding:14px; border-radius:14px; font-size:14.5px; font-weight:800; cursor:pointer; user-select:none; }
+    .btn.primary { background:var(--gold); color:#1a1200; }
+    .btn.secondary { background:rgba(255,255,255,0.09); color:#fff; flex:0 0 32%; }
+    .btn.disabled { opacity:0.35; pointer-events:none; }
+    .foot-note { text-align:center; font-size:11px; color:var(--muted); margin-top:9px; }
+
+    /* ===== WIZARD ===== */
+    .w-title { font-size:22px; font-weight:800; letter-spacing:-0.3px; margin-top:14px; }
+    .w-sub { font-size:13.5px; color:var(--muted); margin-top:6px; line-height:1.5; margin-bottom:20px; }
+    .check-row { display:flex; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--line); }
+    .check-row:last-child { border-bottom:none; }
+    .ck { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .ck.ok { background:rgba(61,220,132,0.16); color:#3ddc84; }
+    .ck.bad { background:rgba(255,92,92,0.16); color:#ff5c5c; }
+    .ck svg { width:13px; height:13px; }
+    .ck-body { flex:1; }
+    .ck-title { font-size:14px; font-weight:600; }
+    .ck-sub { font-size:12px; color:var(--muted); margin-top:2px; }
+    .fix { font-size:12.5px; font-weight:700; color:var(--gold); cursor:pointer; }
+
+    .field { margin-bottom:16px; }
+    .lbl { font-size:12px; font-weight:700; color:rgba(255,255,255,0.7); margin-bottom:7px; display:block; }
+    .inp { width:100%; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:13px 14px; color:#fff; font-family:'Inter',sans-serif; font-size:14px; outline:none; -webkit-appearance:none; appearance:none; }
+    .inp:focus { border-color:rgba(253,224,141,0.6); }
+    .inp::placeholder { color:rgba(255,255,255,0.32); }
+    select.inp option { color:#000; }
+    .row2 { display:flex; gap:10px; } .row2 > * { flex:1; min-width:0; }
+    .hint { font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.45; }
+
+    .upload { border:1.5px dashed rgba(255,255,255,0.22); border-radius:14px; height:118px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; color:var(--muted); font-size:12.5px; cursor:pointer; overflow:hidden; position:relative; text-align:center; padding:0 10px; }
+    .upload svg { width:24px; height:24px; color:rgba(255,255,255,0.4); }
+    .upload img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+    .upload .re { position:absolute; right:8px; bottom:8px; background:rgba(0,0,0,0.65); font-size:11px; font-weight:700; padding:4px 9px; border-radius:8px; color:#fff; }
+    .privacy { display:flex; gap:10px; background:rgba(0,242,254,0.06); border:1px solid rgba(0,242,254,0.18); border-radius:12px; padding:12px 13px; margin-top:6px; font-size:12px; color:rgba(255,255,255,0.75); line-height:1.5; }
+    .privacy svg { width:17px; height:17px; color:#6fe9f5; flex-shrink:0; margin-top:1px; }
+
+    .sum { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:6px 16px; margin-bottom:22px; }
+    .sum-row { display:flex; justify-content:space-between; padding:12px 0; font-size:13.5px; border-bottom:1px solid var(--line); }
+    .sum-row:last-child { border-bottom:none; font-weight:800; font-size:15px; }
+    .sum-row span:first-child { color:var(--muted); } .sum-row:last-child span:first-child { color:#fff; }
+    .methods { display:flex; gap:8px; margin-bottom:16px; }
+    .method { flex:1; text-align:center; padding:12px 6px; border:1.5px solid var(--line); border-radius:12px; font-size:12.5px; font-weight:700; cursor:pointer; background:var(--card); }
+    .method.sel { border-color:var(--gold); background:rgba(253,224,141,0.07); }
+
+    /* ===== STATUS ===== */
+    .st-hero { text-align:center; padding:24px 0 8px; }
+    .st-ico { width:84px; height:84px; border-radius:50%; margin:0 auto 18px; display:flex; align-items:center; justify-content:center; }
+    .st-ico.pend { background:rgba(0,242,254,0.1); color:#6fe9f5; }
+    .st-ico.rej { background:rgba(255,92,92,0.12); color:#ff5c5c; }
+    .st-ico svg { width:38px; height:38px; }
+    .st-hero h2 { font-size:23px; font-weight:800; letter-spacing:-0.3px; }
+    .st-hero p { font-size:13.5px; color:var(--muted); margin:9px auto 0; line-height:1.5; max-width:310px; }
+    .timeline { margin:26px 0 8px; }
+    .tl { display:flex; gap:14px; position:relative; padding-bottom:22px; }
+    .tl:last-child { padding-bottom:0; }
+    .tl::before { content:''; position:absolute; left:11px; top:26px; bottom:0; width:2px; background:rgba(255,255,255,0.1); }
+    .tl:last-child::before { display:none; }
+    .tl-dot { width:24px; height:24px; border-radius:50%; background:rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; flex-shrink:0; z-index:1; }
+    .tl.done .tl-dot { background:#3ddc84; color:#04240f; }
+    .tl.now .tl-dot { background:var(--gold); color:#1a1200; }
+    .tl-dot svg { width:12px; height:12px; }
+    .tl-t { font-size:14px; font-weight:700; } .tl-s { font-size:12px; color:var(--muted); margin-top:2px; }
+    .tl.todo .tl-t { color:var(--muted); }
+    .link-btn { text-align:center; font-size:13.5px; font-weight:700; padding:14px; cursor:pointer; color:#ff6b6b; }
+    .card-list { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:4px 16px; margin-top:22px; }
+    .proc-wrap { padding:120px 20px 0; text-align:center; }
+    .spinner { width:52px; height:52px; border-radius:50%; border:3px solid rgba(255,255,255,0.12); border-top-color:#6fb8ff; margin:0 auto 22px; animation:spin 0.9s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .proc-text { font-size:14.5px; font-weight:600; color:rgba(255,255,255,0.85); }
+    .toast { position:fixed; bottom:110px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,0.96); color:#0a0a0a; font-size:13px; font-weight:700; padding:11px 20px; border-radius:30px; z-index:400; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; white-space:nowrap; }
+    .toast.show { opacity:1; transform:translateX(-50%) translateY(-8px); }
+    input[type=file] { display:none; }
+   </style>
+</head>
+<body>
+
+<div class="hdr">
+    <div class="hdr-row">
+        <span class="icon-btn" id="backBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></span>
+        <span class="hdr-title" id="hdrTitle">Get Verified</span>
+    </div>
+    <div class="steps hidden" id="steps"></div>
+</div>
+
+<div class="wrap" id="view"></div>
+<div class="foot hidden" id="foot"></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInput" accept="image/*">
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script>
+/* ============================================================
+   CONFIG — edit these to match your real product
+   ============================================================ */
+const TIERS = {   // VIP levels. monthly = base price in USD (placeholder). cols = [deep, main, bright, accent] colours of the vortex background
+    standard:{ name:'Standard', monthly:2.99,   cols:['#040a2e','#1d4ed8','#22d3ee','#c4b5fd'] },
+    plus:    { name:'Plus',     monthly:11.99,  cols:['#02201a','#0e9f77','#2de2b8','#f4ff8f'] },
+    premium: { name:'Premium',  monthly:34.99,  cols:['#17042f','#7c3aed','#ec4899','#67e8f9'] },
+    max:     { name:'Max',      monthly:119.99, cols:['#1c0300','#c01818','#ff8a00','#ffd34d'] }
+};
+const ANNUAL_MONTHS_CHARGED = 10;                                              // pay 10 months, get 12
+const CURRENCIES = { USD:1, EUR:0.92, GBP:0.79, NGN:1550, GHS:15.6, KES:129, ZAR:18.2, AED:3.67 };
+const BACKEND = 'https://oryzon-backend-ed1q.onrender.com';
+const REQUIRE_EMAIL_VERIFIED = false;   // set true once your sign-up sends verification emails; until then, requiring it would block everyone
+const FB_CONFIG = { apiKey:"AIzaSyDExSOnFbN-wJbT1UFgB-kBs37bEa3KiWc", authDomain:"oryzon-50ea4.firebaseapp.com", projectId:"oryzon-50ea4", storageBucket:"oryzon-50ea4.firebasestorage.app", messagingSenderId:"782106742622", appId:"1:782106742622:web:902d512bfe42dd4cf289cf" };
+const PROFILE = { name:'', username:'', photo:'', accountType:'individual', hasPhoto:false, emailVerified:false, accountAgeDays:0, violations:0 /* no source yet */, isPublic:true /* no source yet */ };   // filled in from Firebase by loadProfile()
+const ENTITIES = [   // TODO: read from Firebase — show only the accounts this user actually owns
+    { id:'account', label:'My Account',          sub:'Personal profile · Social, Chats, Health', icon:'user',    type:'individual' },
+    { id:'svc',     label:'My Service Business', sub:'Services marketplace',                      icon:'headset', type:'business' },
+    { id:'store',   label:'My Store',            sub:'Marketplace seller',                        icon:'store',   type:'business' },
+    { id:'page',    label:'My Page',             sub:'Chats · Page',                              icon:'layers',  type:'business' },
+    { id:'channel', label:'My Channel',          sub:'Chats · Channel',                           icon:'trend',   type:'business' },
+    { id:'group',   label:'My Group',            sub:'Chats · Group',                             icon:'smile',   type:'business' }
+];
+const qEnt = new URLSearchParams(location.search).get('entity');   // set by the page that opens this overlay
+let selEntity = ENTITIES.find(e => e.id === qEnt) || ENTITIES[0];
+/* ============================================================
+   ICONS
+   ============================================================ */
+const ic = (p, w=1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const ICON = {
+    shield: ic('<path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>'),
+    headset: ic('<path d="M4 14v-2a8 8 0 0116 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M19 20c0 1-2 2-5 2"/>'),
+    trend: ic('<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'),
+    lock: ic('<rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 018 0v3"/>'),
+    store: ic('<path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0"/>'),
+    check: ic('<path d="M5 13l4 4L19 7"/>', 2.6),
+    x: ic('<path d="M6 6l12 12M18 6L6 18"/>', 2.6),
+    chev: ic('<path d="M6 9l6 6 6-6"/>', 2),
+    camera: ic('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
+    id: ic('<rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="11" r="2"/><path d="M6.5 16c.6-1.4 1.6-2 2.5-2s1.9.6 2.5 2M14 10h4M14 13h3"/>'),
+    doc: ic('<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>'),
+    clock: ic('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    xcircle: ic('<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>'),
+    info: ic('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'),
+    star: ic('<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>'),
+    layers: ic('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>'),
+    palette: ic('<path d="M12 3a9 9 0 100 18c1.5 0 2-1 1.5-2s0-2 1.5-2H18a3 3 0 003-3 9 9 0 00-9-11z"/><circle cx="8" cy="11" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16" cy="11" r="1"/>'),
+    smile: ic('<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9.5h.01M15 9.5h.01"/>'),
+    user: ic('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>', 1.6)
+};
+const BADGE_PATH = 'M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.97-.81-4.08s-2.49-1.46-4.08-1.27c-.66-1.1-1.91-1.81-3.17-1.81s-2.51.71-3.17 1.81c-1.58-.19-3.07.16-4.08 1.27s-1.27 2.69-.81 4.08c-1.31.67-2.19 1.91-2.19 3.34s.88 2.67 2.19 3.34c-.46 1.39-.2 2.97.81 4.08s2.49 1.46 4.08 1.27c.66 1.1 1.91 1.81 3.17 1.81s2.51-.71 3.17-1.81c1.58.19 3.07-.16 4.08-1.27s1.27-2.69.81-4.08c1.31-.67 2.19-1.91 2.19-3.34z';
+const CHECK_PATH = 'M10.54 16.25L6.85 12.5l1.44-1.44 2.25 2.25 5.27-5.27 1.44 1.44-6.71 6.77z';
+function badge(type, size, onDark){
+    const gold = type === 'business';
+    const fill = gold ? '#F5C542' : '#000';
+    const tick = gold ? '#1a1200' : '#fff';
+    const stroke = gold ? '#1a1200' : (onDark ? '#fff' : 'none');
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="flex-shrink:0"><path d="${BADGE_PATH}" fill="${fill}" stroke="${stroke}" stroke-width="${gold?0.5:0.7}"/><path d="${CHECK_PATH}" fill="${tick}"/></svg>`;
+}
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let V = { status:'none' };   // the server is the source of truth (GET /verify/mine); nothing is kept in localStorage
+// QA helper:  get-verified.html?state=none|pending|verified|rejected
+const qs = new URLSearchParams(location.search).get('state');
+if(qs){
+    const t = Date.now();
+    if(qs==='pending')  V = { status:'pending', type:'individual', cycle:'monthly', submittedAt:t-3600e3*5 };
+    if(qs==='verified') V = { status:'verified', type:'business', cycle:'annual', approvedAt:t-86400e3*3, renewsAt:t+86400e3*362 };
+    if(qs==='rejected') V = { status:'rejected', type:'individual', cycle:'monthly', reason:'The name on the submitted ID does not match your Oryzon profile name.' };
+    if(qs==='none')     V = { status:'none' };
+}
+let selType = selEntity.type, selTier = 'standard', cycle = 'monthly';
+let currency = (function(){ try { return localStorage.getItem('oryzon_currency') || 'USD'; } catch(e){ return 'USD'; } })();
+let mode = 'landing';   // landing | wizard | status
+let ENTITY_REF = new URLSearchParams(location.search).get('ref') || '';   // id of the page/store/channel/group, passed by the page that opens this
+let step = 0;
+const WIZ = ['Eligibility','Identity','Review'];
+const ID = { docType:'', legalName:'', country:'', front:null, back:null, selfie:null, bizName:'', bizCat:'', bizEmail:'', bizSite:'', bizDoc:null };
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const $ = id => document.getElementById(id);
+function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+function money(usd){
+    const rate = CURRENCIES[currency];
+    const v = usd * rate;
+    const zero = rate > 50;
+    try { return new Intl.NumberFormat(undefined,{ style:'currency', currency, minimumFractionDigits: zero?0:2, maximumFractionDigits: zero?0:2 }).format(v); }
+    catch(e){ return currency+' '+v.toFixed(2); }
+}
+function priceOf(tier, cyc){ const m = TIERS[tier].monthly; return cyc==='annual' ? { per: m*ANNUAL_MONTHS_CHARGED/12, total: m*ANNUAL_MONTHS_CHARGED } : { per: m, total: m }; }
+function fmtDate(t){ return new Date(t).toLocaleDateString(undefined,{ day:'numeric', month:'short', year:'numeric' }); }
+function typeLabel(t){ return t==='business' ? 'Business' : 'Individual'; }
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function pickImage(cb){
+    const fi = $('fileInput'); fi.value='';
+    fi.onchange = () => { const f = fi.files[0]; if(!f) return; const r = new FileReader(); r.onload = e => cb(e.target.result); r.readAsDataURL(f); };
+    fi.click();
+}
+
+/* ============================================================
+   HERO VORTEX (WebGL) — twists, gathers into one spot, spreads out again, reacts to touch
+   ============================================================ */
+const avatarInner = () => PROFILE.photo ? `<img src="${esc(PROFILE.photo)}" alt="">` : ICON.user;
+const HeroGL = (function(){
+    const E = { ok:false, cvs:null, run:false, raf:0, hasColors:false };
+    const VS = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.0,1.0);}';
+    const FS = `
+    #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+    #else
+    precision mediump float;
+    #endif
+    uniform vec2 uRes; uniform float uTime; uniform vec2 uMouse; uniform float uPulse;
+    uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3;
+    float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+    float noise(vec2 p){ vec2 i=floor(p); vec2 f=fract(p); f=f*f*(3.0-2.0*f);
+        return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x), mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x), f.y); }
+    float fbm(vec2 p){ float v=0.0; float a=0.5; mat2 m=mat2(1.6,1.2,-1.2,1.6);
+        for(int i=0;i<5;i++){ v+=a*noise(p); p=m*p; a*=0.5; } return v; }
+    float ridge(vec2 p){ float v=0.0; float a=0.5; mat2 m=mat2(1.6,1.2,-1.2,1.6);
+        for(int i=0;i<5;i++){ float n=1.0-abs(noise(p)*2.0-1.0); v+=a*n*n; p=m*p; a*=0.5; } return v; }
+    void main(){
+        vec2 uv=(gl_FragCoord.xy-0.5*uRes)/uRes.y;
+        vec2 c=vec2(0.0,0.10)+uMouse*0.10;
+        vec2 p=uv-c;
+        float r=length(p);
+        float ang=atan(p.y,p.x);
+        float t=uTime;
+        float b=0.5+0.5*sin(t*0.42);              /* 0 = spread out, 1 = gathered in one spot */
+        b=b*b*(3.0-2.0*b);
+        float tw=(1.1+3.4*b+uPulse*3.0)/(r*3.0+0.32);
+        float a2=ang+tw+t*0.16;
+        float rr=r*(1.25-0.62*b);
+        vec2 q=vec2(cos(a2),sin(a2))*rr*2.4;
+        float f=fbm(q*1.35+vec2(t*0.05,-t*0.04));
+        float g=ridge(q*1.8+f*1.5+vec2(-t*0.06,t*0.03));
+        float arms=0.5+0.5*sin(a2*3.0-log(r+0.02)*5.5+t*0.7);
+        vec3 col=mix(uC0,uC1,smoothstep(0.22,0.85,f)*1.0);
+        col=mix(col,uC2,smoothstep(0.42,1.0,g)*(0.55+0.45*arms));
+        col+=uC3*pow(g,5.0)*1.45*(0.35+0.65*arms);
+        col+=uC2*exp(-pow((r-(0.19+0.06*b))*9.0,2.0))*0.30;
+        float core=smoothstep(0.03,0.30+0.10*b,r);
+        col*=mix(0.0,1.0,core);
+        col*=1.0-0.55*smoothstep(0.35,0.95,r);
+        vec2 sp=uv*85.0; vec2 id=floor(sp); float h=hash(id);
+        float st=step(0.987,h)*smoothstep(0.32,0.0,length(fract(sp)-0.5))*(0.55+0.45*sin(t*2.2+h*60.0));
+        col+=vec3(st)*0.9;
+        col=1.0-exp(-col*1.5);
+        gl_FragColor=vec4(pow(col,vec3(1.04)),1.0);
+    }`;
+    let gl, loc = {}, last = 0, t0 = 0, mouse = [0,0], mt = [0,0], pulse = 0, cur = null, tgt = null;
+    const hex = h => { const n = parseInt(h.slice(1),16); return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255]; };
+    function sh(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+    E.init = function(){
+        try{
+            E.cvs = document.createElement('canvas');
+            gl = E.cvs.getContext('webgl', { antialias:false, alpha:false, powerPreference:'low-power' });
+            if(!gl) return;
+            const pr = gl.createProgram();
+            gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS));
+            gl.linkProgram(pr); if(!gl.getProgramParameter(pr, gl.LINK_STATUS)) return;
+            gl.useProgram(pr);
+            const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+            const pl = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(pl); gl.vertexAttribPointer(pl, 2, gl.FLOAT, false, 0, 0);
+            ['uRes','uTime','uMouse','uPulse','uC0','uC1','uC2','uC3'].forEach(n => loc[n] = gl.getUniformLocation(pr, n));
+            t0 = performance.now(); E.ok = true;
+        }catch(e){ E.ok = false; }
+    };
+    E.setColors = function(cols){
+        tgt = cols.map(hex);
+        if(!E.hasColors){ cur = tgt.map(c => c.slice()); E.hasColors = true; } else pulse = 1;
+    };
+    E.resize = function(){
+        if(!E.ok || !E.cvs.parentElement) return;
+        const w = E.cvs.parentElement.clientWidth, h = E.cvs.parentElement.clientHeight;
+        E.cvs.width = Math.max(2, Math.round(w * 0.55)); E.cvs.height = Math.max(2, Math.round(h * 0.55));
+        gl.viewport(0, 0, E.cvs.width, E.cvs.height);
+    };
+    E.pointer = function(nx, ny){ mt = [nx, ny]; };
+    E.poke = function(){ pulse = Math.min(1.2, pulse + 0.6); };
+    function frame(now){
+        if(!E.run) return;
+        E.raf = requestAnimationFrame(frame);
+        const dt = Math.min(0.05, (now - last) / 1000); last = now;
+        for(let i=0;i<4;i++) for(let j=0;j<3;j++) cur[i][j] += (tgt[i][j] - cur[i][j]) * Math.min(1, dt * 3.2);
+        mouse[0] += (mt[0] - mouse[0]) * Math.min(1, dt * 4); mouse[1] += (mt[1] - mouse[1]) * Math.min(1, dt * 4);
+        pulse = Math.max(0, pulse - dt * 0.7);
+        gl.uniform2f(loc.uRes, E.cvs.width, E.cvs.height);
+        gl.uniform1f(loc.uTime, (now - t0) / 1000);
+        gl.uniform2f(loc.uMouse, mouse[0], mouse[1]);
+        gl.uniform1f(loc.uPulse, pulse);
+        gl.uniform3fv(loc.uC0, cur[0]); gl.uniform3fv(loc.uC1, cur[1]); gl.uniform3fv(loc.uC2, cur[2]); gl.uniform3fv(loc.uC3, cur[3]);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+    E.start = function(){ if(!E.ok || E.run || !cur) return; E.run = true; last = performance.now(); E.raf = requestAnimationFrame(frame); };
+    E.stop = function(){ E.run = false; cancelAnimationFrame(E.raf); };
+    return E;
+})();
+
+/* ============================================================
+   BENEFITS / FAQ CONTENT
+   ============================================================ */
+const TIER_ORDER = ['standard','plus','premium','max'];
+function benefits(tier, type){
+    const n = TIER_ORDER.indexOf(tier), biz = type === 'business';
+    const row = (i, t, d, min, note) => ({ i, t, d, on: n >= min, note: n >= min && note ? note : '' });
+    return [
+        row(ICON.check, biz ? 'Gold verified badge' : 'Verified badge', biz ? 'A gold badge next to your brand name across posts, comments, search and your marketplace listings.' : 'A badge next to your name across posts, comments and search, so people know your account is authentic.', 0),
+        row(ICON.shield, 'Impersonation protection', 'Proactive monitoring for accounts pretending to be you, with faster takedowns.', 0),
+        row(ICON.trend, 'Search boost', 'Your profile ranks higher in search and in suggested accounts.', 0),
+        row(ICON.headset, 'Enhanced support', ['Chat or email with agents.', 'Chat or email, with issues resolved more quickly.', 'Faster resolution, plus the option to request a call from an agent.', 'Everything in Premium, plus active case monitoring.'][n], 0),
+        row(ICON.layers, 'Pages, groups & channels', 'The same badge covers the pages, groups, channels and vendor stores you own.', 0, ['1 profile','2 profiles','5 profiles','10 profiles'][n]),
+        row(ICON.lock, 'Extra account security', 'Additional login protection and alerts for suspicious activity.', 0),
+        row(ICON.smile, 'Exclusive stickers', 'Sticker packs available only to verified members.', 0),
+        row(ICON.star, 'Featured profile', 'Your profile can appear in Featured spots across Oryzon.', 1),
+        row(ICON.store, 'Verified seller trust mark', 'Shoppers see that your store is run by a confirmed owner.', 1),
+        row(ICON.trend, 'Boosted posts', 'Give selected posts extra reach each month.', 1, ['','2 per month','4 per month','6 per month'][n]),
+        row(ICON.palette, 'Custom chat themes', 'Personalise your chats with exclusive themes.', 2)
+    ].sort((x, y) => y.on - x.on);
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function render(){
+    const steps = $('steps'), foot = $('foot');
+    steps.classList.add('hidden'); foot.classList.add('hidden');
+    HeroGL.stop();
+    document.querySelector('.hdr').classList.toggle('clear', mode !== 'wizard' && V.status === 'none');   
+    if(mode === 'wizard') return renderWizard();
+    if(V.status !== 'none') return renderStatus();
+    return renderLanding();
+}
+
+/* ---------- Landing ---------- */
+function renderLanding(){
+    $('hdrTitle').textContent = 'Get Verified';
+    const p = priceOf(selTier, cycle);
+    const saving = Math.round((1 - ANNUAL_MONTHS_CHARGED/12) * 100);
+    const T = TIERS[selTier];
+    $('view').innerHTML = `
+        <div class="tier-hero" id="tierHero" style="--c1:${T.cols[1]}; --c2:${T.cols[2]}; --c3:${T.cols[3]};">
+            <div class="bg" id="tierBg"><div class="bl b1"></div><div class="bl b2"></div><div class="bl b3"></div></div>
+            <div class="gm-title">Get your first month free</div>
+            <div class="av">${PROFILE.photo ? `<img src="${esc(PROFILE.photo)}" alt="">` : ''}</div>
+            <div class="av-name">${esc(PROFILE.username)} ${badge(selType, 20, true)}</div>
+            <div class="tier-hero-name">${T.name}</div>
+            <div class="tier-tabs" id="tierTabs">${Object.keys(TIERS).map(k => `<span data-tier="${k}" class="${selTier===k?'on':''}">${TIERS[k].name}</span>`).join('')}</div>
+        </div>
+        <div class="hero">
+            <p class="tagline">Build trust, stand out, and protect your identity with an official verified badge.</p>
+        </div>
+
+        <div class="preview-label">Preview</div>
+        <div class="ph">
+            <div class="ph-avatar">${avatarInner()}</div>
+            <div>
+                <div class="ph-name">${esc(PROFILE.name)} <span id="phBadge">${badge(selType, 15, false)}</span></div>
+                <div class="ph-user">@${esc(PROFILE.username)} · now</div>
+            </div>
+        </div>
+
+        <div class="sec">What you get · ${T.name}</div>
+        <div id="benefitList">${benefits(selTier, selType).map(b => `
+            <div class="benefit ${b.on?'':'off'}"><div class="b-ico">${b.on ? b.i : ICON.x}</div><div><div class="b-title">${b.t}</div><div class="b-desc">${b.on ? b.d : 'Not included in ' + T.name}</div>${b.note ? `<div class="b-note">${b.note}</div>` : ''}</div></div>`).join('')}
+        </div>
+
+        <div class="sec">Pricing</div>
+        <div class="seg" id="cycleSeg">
+            <span data-cycle="monthly" class="${cycle==='monthly'?'on':''}">Monthly</span>
+            <span data-cycle="annual" class="${cycle==='annual'?'on':''}">Annual<em>Save ${saving}%</em></span>
+        </div>
+        <div class="price-card">
+            <div class="price-row">
+                <div>
+                    <div class="price">${money(p.per)}<small> / month</small></div>
+                    <div class="price-note">${cycle==='annual' ? `Billed ${money(p.total)} once a year` : 'Billed monthly'}</div>
+                </div>
+                <select class="cur" id="curSel">${Object.keys(CURRENCIES).map(c=>`<option ${c===currency?'selected':''}>${c}</option>`).join('')}</select>
+            </div>
+            <div class="assure">
+                <div>${ICON.check} Charged only after your verification is approved</div>
+                <div>${ICON.check} Cancel anytime, no hidden fees</div>
+                <div>${ICON.check} Your documents are never shown publicly</div>
+            </div>
+        </div>
+
+        <div class="help-link" id="helpLink">${ICON.info} Have questions? Visit Help &amp; Support</div>`;
+
+    const foot = $('foot');
+    foot.classList.remove('hidden');
+    foot.innerHTML = `<div class="foot-row"><div class="btn primary" id="goBtn">Continue</div></div><div class="foot-note">Free to apply · Pay only if approved</div>`;
+
+    document.querySelectorAll('#tierTabs span').forEach(t => t.addEventListener('click', () => { selTier = t.dataset.tier; renderLanding(); }));
+    const tabs = $('tierTabs'), on = tabs.querySelector('.on'); tabs.scrollLeft = on.offsetLeft - (tabs.clientWidth - on.offsetWidth) / 2;
+    const hero = $('tierHero');
+    HeroGL.setColors(T.cols);
+    if(HeroGL.ok){ $('tierBg').appendChild(HeroGL.cvs); HeroGL.resize(); HeroGL.start(); }
+    const mv = e => { const r = hero.getBoundingClientRect(), t = e.touches ? e.touches[0] : e; HeroGL.pointer(((t.clientX - r.left) / r.width - 0.5) * 2, -((t.clientY - r.top) / r.height - 0.5) * 2); };
+    const rest = () => HeroGL.pointer(0, 0);
+    hero.addEventListener('touchstart', e => { mv(e); HeroGL.poke(); }, { passive:true });
+    hero.addEventListener('touchmove', mv, { passive:true });
+    hero.addEventListener('touchend', rest); hero.addEventListener('touchcancel', rest);
+    hero.addEventListener('pointermove', mv); hero.addEventListener('pointerleave', rest); hero.addEventListener('pointerdown', () => HeroGL.poke());
+    document.querySelectorAll('#cycleSeg span').forEach(s => s.addEventListener('click', () => { cycle = s.dataset.cycle; renderLanding(); }));
+    $('curSel').addEventListener('change', e => { currency = e.target.value; try{ localStorage.setItem('oryzon_currency', currency); }catch(_){} renderLanding(); });
+    $('helpLink').addEventListener('click', () => { location.href = 'help-support.html'; });
+    $('goBtn').addEventListener('click', () => { mode='wizard'; step=0; render(); window.scrollTo(0,0); });
+}
+
+/* ---------- Wizard ---------- */
+function renderWizard(){
+    $('hdrTitle').textContent = WIZ[step];
+    const bar = $('steps'); bar.classList.remove('hidden');
+    bar.innerHTML = WIZ.map((_,i)=>`<i class="${i<=step?'done':''}"></i>`).join('');
+    const foot = $('foot'); foot.classList.remove('hidden');
+    const last = step === WIZ.length-1;
+    foot.innerHTML = `<div class="foot-row"><div class="btn secondary" id="prevBtn">Back</div><div class="btn primary" id="nextBtn">${last?'Submit for review':'Continue'}</div></div>`;
+    $('prevBtn').addEventListener('click', wizBack);
+    $('nextBtn').addEventListener('click', wizNext);
+    if(step===0) stepEligibility();
+    if(step===1) stepIdentity();
+    if(step===2) stepPayment();
+    updateNext();
+}
+function eligibility(){
+    const list = [
+        { ok:PROFILE.hasPhoto, t:'Profile photo', s:'A clear photo of you or your logo' },
+        { ok:!!PROFILE.name, t:'Display name', s:'Matches the name on your documents' },
+        { ok:PROFILE.emailVerified || !REQUIRE_EMAIL_VERIFIED, t:'Email verified', s:'Confirm your email address in Settings' },
+        { ok:PROFILE.accountAgeDays >= 30, t:'Account at least 30 days old', s:`Your account is ${PROFILE.accountAgeDays} days old` },
+        { ok:PROFILE.violations === 0, t:'No recent policy violations', s:'Your account is in good standing' }
+    ];
+    if(selType==='business') list.push({ ok:PROFILE.isPublic, t:'Public profile', s:'Business profiles must be visible to everyone' });
+    return list;
+}
+function stepEligibility(){
+    const list = eligibility();
+    $('view').innerHTML = `
+        <div class="w-title">Let’s check your account</div>
+        <div class="w-sub">Verification is available for accounts that meet these requirements.</div>
+        ${list.map(r=>`
+        <div class="check-row">
+            <div class="ck ${r.ok?'ok':'bad'}">${r.ok?ICON.check:ICON.x}</div>
+            <div class="ck-body"><div class="ck-title">${r.t}</div><div class="ck-sub">${r.s}</div></div>
+            ${r.ok?'':'<span class="fix" data-fix>Fix</span>'}
+        </div>`).join('')}`;
+    document.querySelectorAll('[data-fix]').forEach(f => f.addEventListener('click', () => toast('Opens the relevant settings page')));
+}
+function stepIdentity(){
+    const biz = selType === 'business';
+    const up = (key,label,icon) => `
+        <div class="field"><span class="lbl">${label}</span>
+            <div class="upload" data-up="${key}">${ID[key] ? `<img src="${ID[key]}"><span class="re">Replace</span>` : `${icon}<span>Tap to upload</span>`}</div>
+        </div>`;
+    $('view').innerHTML = biz ? `
+        <div class="w-title">Verify your business</div>
+        <div class="w-sub">Tell us about your business and upload an official document that shows its name.</div>
+        <div class="field"><label class="lbl">Legal business name</label><input class="inp" id="bizName" value="${esc(ID.bizName)}" placeholder="As registered"></div>
+        <div class="field"><label class="lbl">Business category</label>
+            <select class="inp" id="bizCat"><option value="">Select category</option>${['Retail & e-commerce','Food & beverage','Fashion & beauty','Health & wellness','Education','Technology','Media & entertainment','Services','Non-profit','Other'].map(c=>`<option ${ID.bizCat===c?'selected':''}>${c}</option>`).join('')}</select></div>
+        <div class="field"><label class="lbl">Business email</label><input class="inp" id="bizEmail" type="email" value="${esc(ID.bizEmail)}" placeholder="name@company.com"></div>
+        <div class="field"><label class="lbl">Website or social link <span style="color:var(--muted);font-weight:500">(optional)</span></label><input class="inp" id="bizSite" value="${esc(ID.bizSite)}" placeholder="https://"></div>
+        ${up('bizDoc','Registration or business document', ICON.doc)}
+        <div class="hint" style="margin-top:-8px;margin-bottom:6px;">Certificate of registration, tax document or utility bill showing the business name.</div>
+        <div class="privacy">${ICON.lock}<span>Your documents are used only to confirm your business and are never shown on your profile.</span></div>
+    ` : `
+        <div class="w-title">Confirm your identity</div>
+        <div class="w-sub">Upload a government-issued ID and a selfie so we can confirm it’s really you.</div>
+        <div class="field"><label class="lbl">Full legal name</label><input class="inp" id="legalName" value="${esc(ID.legalName)}" placeholder="As shown on your ID"></div>
+        <div class="row2">
+            <div class="field"><label class="lbl">ID type</label>
+                <select class="inp" id="docType"><option value="">Select</option>${['Passport','Driver’s license','National ID card'].map(c=>`<option ${ID.docType===c?'selected':''}>${c}</option>`).join('')}</select></div>
+            <div class="field"><label class="lbl">Country of issue</label><input class="inp" id="country" value="${esc(ID.country)}" placeholder="Country"></div>
+        </div>
+        ${up('front','ID — front', ICON.id)}
+        ${ID.docType && ID.docType!=='Passport' ? up('back','ID — back', ICON.id) : ''}
+        ${up('selfie','Selfie', ICON.camera)}
+        <div class="hint" style="margin-top:-8px;margin-bottom:6px;">Face the camera in good light. Your face must be clearly visible.</div>
+        <div class="privacy">${ICON.lock}<span>Your documents are used only to confirm your identity and are never shown on your profile.</span></div>`;
+
+    const bind = (id,key,ev='input') => { const el=$(id); if(el) el.addEventListener(ev, e => { ID[key]=e.target.value; updateNext(); if(id==='docType') stepIdentity(); }); };
+    bind('bizName','bizName'); bind('bizCat','bizCat','change'); bind('bizEmail','bizEmail'); bind('bizSite','bizSite');
+    bind('legalName','legalName'); bind('docType','docType','change'); bind('country','country');
+    document.querySelectorAll('[data-up]').forEach(u => u.addEventListener('click', () => pickImage(src => { ID[u.dataset.up] = src; stepIdentity(); updateNext(); })));
+}
+function stepPayment(){   // "Review": nothing is charged here. Payment (when it is switched on) happens after approval, on the payment provider's own secure page.
+    const p = priceOf(selTier, cycle), biz = selType === 'business';
+    $('view').innerHTML = `
+        <div class="w-title">Review and submit</div>
+        <div class="w-sub">Check your details. Our team reviews every request. You won’t be charged to apply.</div>
+        <div class="sum">
+            <div class="sum-row"><span>Badge</span><span>${typeLabel(selType)}</span></div>
+            <div class="sum-row"><span>${biz?'Business':'Name on ID'}</span><span>${esc(biz ? ID.bizName : ID.legalName)}</span></div>
+            <div class="sum-row"><span>Plan</span><span>${TIERS[selTier].name} · ${cycle==='annual'?'Annual':'Monthly'}</span></div>
+            <div class="sum-row"><span>Price if approved</span><span>${money(p.per)} / month</span></div>
+        </div>
+        <div class="privacy">${ICON.lock}<span>If you are approved and a payment is due, you will be sent to our payment partner’s secure page. We never see or store your card details. Your ID documents are deleted as soon as we decide.</span></div>`;
+}
+function valid(){
+    if(step===0) return eligibility().every(r=>r.ok);
+    if(step===1){
+        if(selType==='business') return !!(ID.bizName.trim() && ID.bizCat && /\S+@\S+\.\S+/.test(ID.bizEmail) && ID.bizDoc);
+        const needBack = ID.docType && ID.docType!=='Passport';
+        return !!(ID.legalName.trim() && ID.docType && ID.country.trim() && ID.front && ID.selfie && (!needBack || ID.back));
+    }
+    return true;
+}
+function updateNext(){ const b=$('nextBtn'); if(b) b.classList.toggle('disabled', !valid()); }
+function wizBack(){ if(step===0){ mode='landing'; render(); } else { step--; render(); } window.scrollTo(0,0); }
+function wizNext(){
+    if(!valid()) return;
+    if(step < WIZ.length-1){ step++; render(); window.scrollTo(0,0); return; }
+    finishSubmit();
+}
+function renderProcessing(msg){
+    $('hdrTitle').textContent = WIZ[step];
+    $('foot').classList.add('hidden');
+    $('view').innerHTML = `
+        <div class="proc-wrap">
+            <div class="spinner"></div>
+            <div class="proc-text" id="procText">${esc(msg || 'Submitting your request')}</div>
+        </div>`;
+}
+
+/* ---------- backend ---------- */
+let AUTH_USER = null;
+async function authToken(){ if(!AUTH_USER) throw new Error('signin'); return AUTH_USER.getIdToken(); }
+async function api(path, opts){
+    opts = opts || {};
+    const t = await authToken();
+    const r = await fetch(BACKEND + path, { method: opts.method || 'GET', headers: Object.assign({ Authorization:'Bearer ' + t }, opts.body ? { 'Content-Type':'application/json' } : {}), body: opts.body ? JSON.stringify(opts.body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok){ const e = new Error(j.error || 'failed'); e.status = r.status; throw e; }
+    return j;
+}
+function dataUrlToBlob(u){ return fetch(u).then(r => r.blob()); }
+function shrink(dataUrl){   // phone photos are huge: scale to 1600px and re-encode as JPEG before upload
+    return new Promise(res => { const im = new Image(); im.onload = () => { const k = Math.min(1, 1600 / Math.max(im.width, im.height)); const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.85)); }; im.onerror = () => res(dataUrl); im.src = dataUrl; });
+}
+async function uploadDoc(dataUrl, docType){
+    const blob = await dataUrlToBlob(await shrink(dataUrl));
+    const fd = new FormData(); fd.append('file', blob, docType + '.jpg'); fd.append('docType', docType);
+    const r = await fetch(BACKEND + '/upload-verification', { method:'POST', headers:{ Authorization:'Bearer ' + await authToken() }, body: fd });
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok || !j.key) throw new Error(j.error || 'upload_failed');
+    return j.key;
+}
+const SUBMIT_ERR = { already_pending:'You already have a request under review.', already_verified:'This account is already verified.', bad_document:'A document could not be accepted. Please upload it again.', missing_identity:'Please complete your identity details.', missing_business:'Please complete your business details.' };
+async function finishSubmit(){
+    renderProcessing('Uploading your documents');
+    try {
+        const docs = {};
+        if(selType === 'business'){ docs.bizDoc = await uploadDoc(ID.bizDoc, 'business-doc'); }
+        else { docs.front = await uploadDoc(ID.front, 'id'); if(ID.docType !== 'Passport' && ID.back) docs.back = await uploadDoc(ID.back, 'id-back'); docs.selfie = await uploadDoc(ID.selfie, 'selfie'); }
+        const t = $('procText'); if(t) t.textContent = 'Sending your request';
+        const body = { entityId:selEntity.id, ref:ENTITY_REF, type:selType, tier:selTier, cycle, username:PROFILE.username, docs };
+        if(selType === 'business') body.business = { name:ID.bizName, category:ID.bizCat, email:ID.bizEmail, site:ID.bizSite };
+        else body.identity = { legalName:ID.legalName, docType:ID.docType, country:ID.country };
+        const j = await api('/verify/request', { method:'POST', body });
+        V = j.state;
+        ID.front = ID.back = ID.selfie = ID.bizDoc = null;
+        mode = 'landing'; render(); window.scrollTo(0,0); toast('Request submitted');
+    } catch(e){
+        mode = 'wizard'; step = WIZ.length - 1; render();
+        toast(e.status === 401 || e.message === 'signin' ? 'Please sign in again.' : (SUBMIT_ERR[e.message] || 'Could not submit. Please try again.'));
+    }
+}
+
+/* ---------- Status ---------- */
+function renderStatus(){
+    $('hdrTitle').textContent = 'Verification';
+    const view = $('view'), foot = $('foot');
+    if(V.status === 'pending'){
+        view.innerHTML = `
+            <div class="st-hero"><div class="st-ico pend">${ICON.clock}</div>
+                <h2>Your request is under review</h2>
+                <p>We’ll notify you as soon as there’s a decision. This usually takes 1–3 business days.</p></div>
+            <div class="timeline">
+                <div class="tl done"><div class="tl-dot">${ICON.check}</div><div><div class="tl-t">Request submitted</div><div class="tl-s">${fmtDate(V.submittedAt)}</div></div></div>
+                <div class="tl now"><div class="tl-dot">${ICON.clock}</div><div><div class="tl-t">Under review</div><div class="tl-s">Our team is checking your details</div></div></div>
+                <div class="tl todo"><div class="tl-dot"></div><div><div class="tl-t">Decision</div><div class="tl-s">You’ll be charged only if approved</div></div></div>
+            </div>
+            <div class="card-list">
+                <div class="sum-row"><span>Badge</span><span>${typeLabel(V.type)}</span></div>
+                <div class="sum-row" style="border-bottom:none"><span>Plan</span><span>${V.cycle==='annual'?'Annual':'Monthly'}</span></div>
+            </div>
+            <div class="link-btn" id="withdraw">Withdraw request</div>`;
+        foot.classList.add('hidden');
+        $('withdraw').addEventListener('click', async () => { if(confirm('Withdraw your verification request?')){ try { await api('/verify/withdraw', { method:'POST', body:{ id:V.requestId } }); V={status:'none'}; render(); toast('Request withdrawn'); } catch(e){ toast('Could not withdraw. Please try again.'); } } });
+    }
+    if(V.status === 'verified'){
+        const p = priceOf(V.tier || 'standard', V.cycle);
+        view.innerHTML = `
+            <div class="st-hero"><div class="hero-badge" style="width:110px;height:110px;">${badge(V.type, 78, true)}</div>
+                <h2>You’re verified</h2>
+                <p>Your ${V.type==='business'?'gold ':''}badge is now visible across Oryzon.</p></div>
+            <div class="preview-label">How it looks</div>
+            <div class="ph"><div class="ph-avatar">${avatarInner()}</div><div><div class="ph-name">${esc(PROFILE.name)} ${badge(V.type,15,false)}</div><div class="ph-user">@${esc(PROFILE.username)} · now</div></div></div>
+            <div class="card-list">
+                <div class="sum-row"><span>Badge</span><span>${typeLabel(V.type)}</span></div>
+                <div class="sum-row"><span>Plan</span><span>${V.cycle==='annual'?'Annual':'Monthly'}${V.free ? '' : ' · ' + money(p.total)}</span></div>
+                <div class="sum-row" style="border-bottom:none"><span>${V.cancelling?'Ends on':(V.free?'Billing':'Renews on')}</span><span>${V.renewsAt ? fmtDate(V.renewsAt) : 'Free during launch'}</span></div>
+            </div>
+            ${V.cancelling ? `<div class="hint" style="text-align:center;margin-top:14px;">Your subscription is cancelled. Your badge stays active until ${V.renewsAt ? fmtDate(V.renewsAt) : 'now'}.</div>` : `<div class="link-btn" id="cancelSub">Cancel subscription</div>`}`;
+        foot.classList.add('hidden');
+        $('cancelSub')?.addEventListener('click', async () => { if(confirm('Cancel your subscription? Your badge stays active until the end of the current period.')){ try { await api('/verify/cancel', { method:'POST', body:{ entityKey:ENTITY_KEY } }); await refreshState(); toast('Subscription cancelled'); } catch(e){ toast('Could not cancel. Please try again.'); } } });
+    }
+    if(V.status === 'awaiting_payment'){
+        const p = priceOf(V.tier || 'standard', V.cycle);
+        view.innerHTML = `
+            <div class="st-hero"><div class="st-ico pend">${ICON.check}</div>
+                <h2>You’re approved</h2>
+                <p>Complete your payment to activate your badge.</p></div>
+            <div class="card-list">
+                <div class="sum-row"><span>Badge</span><span>${typeLabel(V.type)}</span></div>
+                <div class="sum-row" style="border-bottom:none"><span>Due now</span><span>${money(p.total)}</span></div>
+            </div>`;
+        foot.classList.remove('hidden');
+        foot.innerHTML = `<div class="foot-row"><div class="btn primary" id="payNow">Pay securely</div></div>`;
+        $('payNow').addEventListener('click', () => { if(V.checkoutUrl) location.href = V.checkoutUrl; else toast('Payment link is not ready yet.'); });
+    }
+    if(V.status === 'rejected'){
+        view.innerHTML = `
+            <div class="st-hero"><div class="st-ico rej">${ICON.xcircle}</div>
+                <h2>We couldn’t verify your account</h2>
+                <p>${esc(V.reason || 'Your request did not meet our verification requirements.')}</p></div>
+            <div class="card-list" style="margin-top:8px;">
+                <div class="check-row"><div class="ck ok">${ICON.info}</div><div class="ck-body"><div class="ck-title">Make sure your name matches your ID</div></div></div>
+                <div class="check-row"><div class="ck ok">${ICON.info}</div><div class="ck-body"><div class="ck-title">Use clear, well-lit, uncropped photos</div></div></div>
+                <div class="check-row"><div class="ck ok">${ICON.info}</div><div class="ck-body"><div class="ck-title">You haven’t been charged</div></div></div>
+            </div>`;
+        foot.classList.remove('hidden');
+        foot.innerHTML = `<div class="foot-row"><div class="btn primary" id="retry">Start a new request</div></div>`;
+        $('retry').addEventListener('click', () => { V={status:'none'}; mode='landing'; render(); });
+    }
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+$('backBtn').addEventListener('click', () => {
+    if(mode==='wizard'){ wizBack(); return; }
+    if(window.parent && window.parent !== window && typeof window.parent.closePageOverlay === 'function') window.parent.closePageOverlay();
+    else history.back();
+});
+HeroGL.init();
+window.addEventListener('resize', () => HeroGL.resize());
+
+/* ---------- boot: sign-in, profile, current status ---------- */
+let ENTITY_KEY = '';
+async function loadProfile(u){
+    try {
+        PROFILE.emailVerified = !!u.emailVerified;
+        const created = u.metadata && u.metadata.creationTime ? Date.parse(u.metadata.creationTime) : 0;
+        PROFILE.accountAgeDays = created ? Math.floor((Date.now() - created) / 86400000) : 0;
+        const fs = firebase.firestore();
+        const m = await fs.collection('uidMap').doc(u.uid).get();
+        const un = m.exists ? m.data().username : '';
+        if(un){
+            const d = await fs.collection('users').doc(un).get(); const x = d.exists ? d.data() : {};
+            PROFILE.username = un; PROFILE.name = x.fullName || un; PROFILE.photo = x.avatarUrl || ''; PROFILE.hasPhoto = !!PROFILE.photo;
+        }
+    } catch(e){ console.warn('profile', e); }
+}
+async function refreshState(){
+    try { const j = await api('/verify/mine?entity=' + encodeURIComponent(selEntity.id) + (ENTITY_REF ? '&ref=' + encodeURIComponent(ENTITY_REF) : '')); V = j.state; ENTITY_KEY = j.entityKey; }
+    catch(e){ V = { status:'none' }; toast('Could not load your verification status.'); }
+    const q = new URLSearchParams(location.search).get('state');
+    if(q === 'pending')  V = { status:'pending', type:'individual', cycle:'monthly', submittedAt:Date.now() - 3600e3*5 };      // QA helper (display only)
+    if(q === 'verified') V = { status:'verified', type:'business', cycle:'annual', approvedAt:Date.now() - 86400e3*3, renewsAt:Date.now() + 86400e3*362 };
+    if(q === 'rejected') V = { status:'rejected', type:'individual', cycle:'monthly', reason:'The name on the submitted ID does not match your Oryzon profile name.' };
+    render();
+}
+function showBoot(html){ $('view').innerHTML = html; }
+function boot(){
+    showBoot('<div class="proc-wrap"><div class="spinner"></div></div>');
+    try { if(!firebase.apps.length) firebase.initializeApp(FB_CONFIG); } catch(e){}
+    firebase.auth().onAuthStateChanged(async u => {
+        if(!u){ AUTH_USER = null; showBoot('<div class="proc-wrap"><div class="proc-text">Please sign in to get verified.</div></div>'); return; }
+        AUTH_USER = u; await loadProfile(u); await refreshState();
+    });
+}
+boot();
+window.gvOpen = async function(id, ref){
+    selEntity = ENTITIES.find(x => x.id === id) || ENTITIES[0];   // no/unknown entity = personal account
+    ENTITY_REF = ref || '';
+    selType = selEntity.type; selTier = 'standard'; cycle = 'monthly'; step = 0;
+    V = { status:'none' }; mode = 'landing';
+    if(AUTH_USER) await refreshState(); else render();
+    window.scrollTo(0,0);
+};
+window.__gvReady = true;
+</script>
+</body>
+</html>
