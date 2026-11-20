@@ -139,7 +139,7 @@ app.post('/upload-verification', requireAuth, upload.single('file'), async (req,
         if (!req.file) return res.status(400).json({ error: 'Babu file' });
 
         const { docType } = req.body;   // "id" ko "selfie"
-        if (!['id', 'id-back', 'selfie', 'business-doc'].includes(docType)) {
+        if (!['id', 'id-back', 'selfie', 'business-doc', 'licence'].includes(docType)) {
             return res.status(400).json({ error: 'docType dole ya zama id ko selfie' });
         }
 
@@ -467,7 +467,12 @@ mountVerify(app, {
     deleteDocs: keys => Promise.all(keys.map(k => s3.deleteObject({ Bucket: VERIFICATION_BUCKET, Key: k }).promise())),
     payments: { mode: 'free' }
 });
-
+const mountDoctorVerify = require('./nexus-doctor-verify-routes');
+mountDoctorVerify(app, {
+    admin,
+    adminUids: [ADMIN_UID],
+    deleteDocs: keys => Promise.all(keys.map(k => s3.deleteObject({ Bucket: VERIFICATION_BUCKET, Key: k }).promise()))
+});
 const mountPremium = require('./nexus-premium-routes');
 mountPremium(app, {
     admin,
