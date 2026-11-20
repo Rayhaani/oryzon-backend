@@ -482,6 +482,9 @@ mountPremium(app, {
     visionModel: process.env.MEAL_VISION_MODEL || 'qwen/qwen3.8-27b',
     payments: { mode: 'free' }
 });
+const mountTelehealth = require('./nexus-telehealth-routes');
+mountTelehealth(app, { admin, payments: { mode: 'free' } });
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
 
