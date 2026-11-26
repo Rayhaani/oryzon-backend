@@ -485,6 +485,9 @@ mountPremium(app, {
 const mountTelehealth = require('./nexus-telehealth-routes');
 mountTelehealth(app, { admin, payments: { mode: 'free' } });
 
+const mountShare = require('./nexus-share-routes');
+mountShare(app, { admin });
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server yana gudana a port ${PORT}`));
 
